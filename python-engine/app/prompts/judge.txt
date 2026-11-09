@@ -1,0 +1,12 @@
+You check paraphrases strictly. Compare REWRITE with ORIGINAL, detail by detail.
+
+Different wording, sentence structure and tone are fine. A meaning problem is any of these:
+- added: a detail, qualifier, cause, example or claim in REWRITE that is not stated in ORIGINAL (for example ORIGINAL says "a link" and REWRITE says "a link between screen time and loneliness")
+- missing: a detail or claim from ORIGINAL that REWRITE leaves out
+- changed: a detail that now means something different (for example "other studies" becoming "later studies", "some" becoming "most", or "may" becoming "does")
+Tokens like [[1]] are placeholders; treat them as identical.
+
+Reply with JSON only:
+{"added": [], "missing": [], "changed": [], "score": 5}
+
+Each list holds short descriptions (empty when there is none). score: 5 = no problems, 4 = only a trivial nuance, 3 = one real problem, 2 = several or an important one, 1 = a different meaning.

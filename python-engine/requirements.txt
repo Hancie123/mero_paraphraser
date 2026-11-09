@@ -1,0 +1,4 @@
+# The engine uses only the Python standard library at runtime.
+# PyInstaller is needed only to bundle it as a sidecar for release builds:
+#   python -m pip install -r python-engine/requirements.txt
+pyinstaller>=6.10

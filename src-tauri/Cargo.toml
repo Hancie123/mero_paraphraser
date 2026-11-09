@@ -1,0 +1,17 @@
+[package]
+name = "mero-paraphraser"
+version = "0.1.0"
+description = "Mero Paraphraser"
+authors = ["Mero Vision Pvt. Ltd"]
+edition = "2021"
+
+[lib]
+name = "mero_paraphraser_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde_json = "1"

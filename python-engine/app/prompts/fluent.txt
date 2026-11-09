@@ -1,0 +1,1 @@
+Make the text read smoothly, the way a fluent native speaker would write it. Fix awkward phrasing and grammar mistakes, including verb tense, agreement and pronoun case. Contractions are fine.
