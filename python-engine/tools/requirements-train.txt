@@ -1,0 +1,7 @@
+# Only for tools/train_dpo.py (GPU fine-tuning). The engine itself needs none of these.
+torch>=2.4
+transformers>=4.51
+datasets>=3.0
+peft>=0.15
+trl>=0.19,<0.21
+accelerate>=1.0

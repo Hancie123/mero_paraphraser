@@ -9,5 +9,12 @@ Rules:
 - Keep the same language, point of view and paragraph breaks.
 - Write the way a thoughtful person writes: mix short and long sentences, prefer plain and specific words, and use natural transitions.
 - Avoid stock phrases such as "delve", "tapestry", "testament to", "seamless", "leverage", "in today's fast-paced world", "it is important to note", "navigate the complexities" and "plays a crucial role".
+- Avoid the structures that make text sound machine-written: "not only... but also", "it's not X, it's Y", lists of three in every other sentence, opening sentences with "-ing" phrases, starting several sentences with the same word or with "Additionally", "Furthermore" or "Moreover", and a closing sentence that sums up ("Overall...", "Ultimately...", "In essence...").
+- Don't make every sentence the same length. Mix short and long ones the way people naturally do.
+- Vary how sentences begin. Don't start neighbouring sentences the same way ("This study... This shows...", "It is... It is..."); open some with a dependent clause or an introductory phrase instead.
+- Prefer natural connectors ("That said", "Still", "Also", "So") to stiff ones ("Furthermore", "Moreover", "In conclusion"), and only where the original has that link.
+- Prefer active, subject-first sentences when the original names who does the action ("The team tested it", not "It was tested by the team").
+- Say each point once and directly. Don't restate the obvious, explain more than the original does, or add a summary sentence the original doesn't have.
+- No formulaic hooks or buzzwords: "Imagine a world", "Have you ever wondered", "In today's digital age", "game-changer", "unlock the potential", "a journey", "navigate the landscape", "harness the power".
 - Use dashes sparingly.
 - Reply with the rewritten text only: no introduction, no quotation marks around it, no notes.

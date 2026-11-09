@@ -40,7 +40,7 @@ def change_kind(text: str, original: str) -> str:
     if text.lower() == original.lower():
         return "Capitalization"
     new_words, old_words = WORD_RE.findall(text), WORD_RE.findall(original)
-    if len(new_words) == 1 and len(old_words) == 1 and text.lower() in (lx.synonyms_for(original.lower()) or []):
+    if len(new_words) == 1 and len(old_words) == 1 and text.lower() in (lx.suggestions_for(original.lower()) or []):
         return "Synonym"
     if len(new_words) < len(old_words):
         return "Shortened"
@@ -52,7 +52,7 @@ def change_kind(text: str, original: str) -> str:
 def alternatives(text: str, original: str) -> list[str]:
     alts: list[str] = []
     if WORD_RE.fullmatch(text):
-        for alt in lx.synonyms_for(text.lower()) or []:
+        for alt in lx.suggestions_for(text.lower()) or []:
             alt = match_case(text, alt)
             if alt != text and alt not in alts:
                 alts.append(alt)
@@ -136,6 +136,12 @@ class OutputFormatter:
         fixes = sum(c.fixes for c in chunks)
         phrases = sum(c.phrases for c in chunks)
         rewritten = [c for c in chunks if c.rewrite]
+        restructured = sum(c.restructured for c in rewritten)
+        swaps = sum(c.swaps for c in rewritten)
+        sentence_rewrites = sum(c.sentence_rewrites for c in rewritten)
+        human_scores = [c.human_score for c in rewritten if c.human_score is not None and not c.kept_original]
+        patterns = sorted({p for c in rewritten if not c.kept_original for p in c.patterns})
+        drafts = max((c.drafts for c in rewritten), default=0)
         protected_parts = []
         if citations["citations"]:
             protected_parts.append(f"{citations['citations']} citation{'s' * (citations['citations'] != 1)}")
@@ -179,6 +185,12 @@ class OutputFormatter:
         engine_name = MODEL_NAME if engine == "ai" else "the rule-based engine"
         detail = (f"Rewrote {len(rewritten)} part{'s' * (len(rewritten) != 1)} with {engine_name} in "
                   f"{MODES[mode].label} mode ({_strength_label(strength)} changes)")
+        if drafts > 1:
+            detail += f"; kept the most human-sounding of {drafts} drafts per part"
+        if sentence_rewrites:
+            detail += f"; rewrote {_n(sentence_rewrites, 'predictable sentence')}"
+        if swaps:
+            detail += f"; varied {_n(swaps, 'predictable word')}"
         if meaning["retried"]:
             detail += f"; {meaning['retried']} rewritten again after validation"
         add(3, "ok", detail + ".")
@@ -186,6 +198,8 @@ class OutputFormatter:
         detail = (f"{fixes} spacing, punctuation or grammar fix{'es' * (fixes != 1)}" if fixes else "No corrections needed")
         if phrases:
             detail += f"; replaced {phrases} overused phrase{'s' * (phrases != 1)}"
+        if restructured:
+            detail += f"; {_n(restructured, 'structural edit')} for a more natural rhythm"
         add(4, "ok", detail + ".")
 
         if meaning["issues"]:
@@ -230,6 +244,10 @@ class OutputFormatter:
             explain.append("Citations, quotations and references were left exactly as written.")
         if phrases:
             explain.append(f"Replaced {phrases} overused AI-style phrase{'s' * (phrases != 1)} with plainer wording.")
+        if drafts > 1 or restructured or swaps:
+            explain.append("Chose less predictable wording and a more varied sentence rhythm, so the text reads more like a person wrote it.")
+        if patterns:
+            explain.append("Still reads a little machine-like here: " + _list(patterns, 3) + ".")
         if meaning["kept_original"]:
             explain.append(f"{meaning['kept_original']} part{'s' * (meaning['kept_original'] != 1)} kept unchanged because the rewrite didn't pass validation.")
 
@@ -248,5 +266,13 @@ class OutputFormatter:
                 "explanations": explain,
                 "warnings": meaning["issues"] + ([] if citations["ok"] else ["Some citations or quotations changed."]),
                 "register": context.register,
+                "humanness": {
+                    "score": round(sum(human_scores) / len(human_scores), 2) if human_scores else None,
+                    "drafts": drafts,
+                    "sentence_rewrites": sentence_rewrites,
+                    "word_swaps": swaps,
+                    "structural_edits": restructured,
+                    "patterns": patterns,
+                },
             },
         }

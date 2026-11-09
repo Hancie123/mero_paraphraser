@@ -108,6 +108,13 @@ class ChunkResult:
     critical: bool = False
     meaning_score: int | None = None  # 1-5 from the model's meaning check
     kept_original: bool = False
+    # human-like output (humanizer.py)
+    drafts: int = 0  # drafts written per attempt
+    human_score: float | None = None  # higher reads more human
+    restructured: int = 0  # Layer 5 edits against AI-typical structure
+    swaps: int = 0  # predictable words swapped for synonyms
+    sentence_rewrites: int = 0  # flat sentences rewritten
+    patterns: list[str] = field(default_factory=list)  # AI-typical structures still present
 
 
 @dataclass

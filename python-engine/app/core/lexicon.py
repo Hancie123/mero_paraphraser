@@ -13,6 +13,9 @@ their ``-s`` forms (``problems`` -> ``issues``, ``helps`` -> ``assists``).
 
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 A, R, V, N = "a", "r", "v", "n"  # adjective, adverb, verb, noun
 
 GROUPS: list[tuple[str, list[str], list[str] | None]] = [
@@ -265,6 +268,52 @@ def synonyms_for(word: str) -> list[str] | None:
         if entry and entry[0] in (N, V) and pluralize(base, entry[0]) == word:
             return [pluralize(alt, entry[0]) for alt in entry[1]]
     return None
+
+
+# --- generated synonyms (app/data/synonyms_extra.json, built by tools/build_lexicon.py) ---
+#
+# Adjectives and adverbs from WordNet, filtered by word frequency. They are broader than the
+# hand-written groups, so only code with a second check uses them: the humanizer swaps a word
+# only when the model itself rated the synonym likely at that spot, and the editor offers them
+# as suggestions the user picks from. The offline rule engine never uses them.
+
+EXTRA_FILE = Path(__file__).resolve().parents[1] / "data" / "synonyms_extra.json"
+
+
+def _load_extra(path: Path = EXTRA_FILE) -> dict[str, tuple[str, list[str]]]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}  # the file is optional: without it the hand-written groups still work
+    out: dict[str, tuple[str, list[str]]] = {}
+    for pos in (A, R):
+        group = data.get(pos)
+        if not isinstance(group, dict):
+            continue
+        for word, alts in group.items():
+            if word in SYNONYMS or not isinstance(alts, list):
+                continue  # hand-written groups win
+            alts = [a for a in alts if isinstance(a, str) and a and a != word]
+            if alts:
+                out[word] = (pos, alts)
+    return out
+
+
+EXTRA_SYNONYMS = _load_extra()
+
+
+def swap_entry(word: str) -> tuple[str, list[str]] | None:
+    """``(part_of_speech, synonyms)`` for a lowercase word: hand-written first, then generated."""
+    return SYNONYMS.get(word) or EXTRA_SYNONYMS.get(word)
+
+
+def suggestions_for(word: str) -> list[str] | None:
+    """``synonyms_for`` plus generated synonyms. Only for callers that check the context."""
+    found = synonyms_for(word)
+    if found is not None:
+        return found
+    entry = EXTRA_SYNONYMS.get(word)
+    return list(entry[1]) if entry else None
 
 
 # Words a formal register prefers, and words it avoids.

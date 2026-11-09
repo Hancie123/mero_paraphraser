@@ -280,7 +280,7 @@ class ModelManager:
         flags = 0x0800_0000 if sys.platform == "win32" else 0  # CREATE_NO_WINDOW
         self._proc = subprocess.Popen(
             [str(exe), "-m", str(model), "--host", "127.0.0.1", "--port", str(self._port),
-             "-c", str(config.CONTEXT_TOKENS), "-np", "1"],
+             "-c", str(config.SERVER_CONTEXT), "-np", str(config.PARALLEL), "-kvu"],
             stdin=subprocess.DEVNULL, stdout=log, stderr=log,
             cwd=str(exe.parent), creationflags=flags,
         )
@@ -319,8 +319,68 @@ class ModelManager:
         max_tokens: int = 1024,
         seed: int | None = None,
         json_mode: bool = False,
+        extra: dict | None = None,
     ) -> str:
-        """One chat completion from the local model; returns the reply text."""
+        """One chat completion from the local model; returns the reply text.
+
+        ``extra`` adds llama.cpp sampling options (DRY, XTC, logit_bias...).
+        """
+        data = self._chat(system, user, temperature, max_tokens, seed, json_mode, extra)
+        return _THINK.sub("", data["choices"][0]["message"]["content"] or "").strip()
+
+    def complete_scored(
+        self,
+        system: str,
+        user: str,
+        *,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        seed: int | None = None,
+        extra: dict | None = None,
+    ) -> tuple[str, list[tuple[int, int, float, tuple[str, ...]]]]:
+        """Like ``complete``, plus each generated token's (start, end, logprob, alternatives) in the text.
+
+        ``alternatives`` are the other tokens the model rated likely at that
+        point (top 10), which tells the word-swap step which synonyms fit the context.
+
+        The log-probabilities are the model's own (before sampling), so they say
+        how predictable each piece of the reply was. Several calls can run at
+        once from different threads; llama-server batches them (config.PARALLEL).
+        """
+        data = self._chat(system, user, temperature, max_tokens, seed, False,
+                          {**(extra or {}), "logprobs": True, "top_logprobs": 10})
+        choice = data["choices"][0]
+        content = choice["message"]["content"] or ""
+        raw = bytearray()
+        spans: list[tuple[int, int, float, tuple[str, ...]]] = []
+        for tok in (choice.get("logprobs") or {}).get("content") or []:
+            piece = bytes(tok.get("bytes") or tok.get("token", "").encode("utf-8"))
+            alts = tuple(t.get("token", "") for t in tok.get("top_logprobs") or [] if t.get("logprob", -99) > -6)
+            spans.append((len(raw), len(raw) + len(piece), float(tok.get("logprob", 0.0)), alts))
+            raw += piece
+        decoded = raw.decode("utf-8", "replace")
+        if decoded.strip() != content.strip() or _THINK.search(content):
+            return _THINK.sub("", content).strip(), []  # can't align tokens with the text
+        # byte offsets -> character offsets in the stripped text
+        char_at = [0] * (len(raw) + 1)
+        pos = 0
+        for i, ch in enumerate(decoded):
+            n = len(ch.encode("utf-8"))
+            for b in range(n):
+                char_at[pos + b] = i
+            pos += n
+        char_at[pos:] = [len(decoded)] * (len(char_at) - pos)
+        lead = len(decoded) - len(decoded.lstrip())
+        text = decoded.strip()
+        tokens = []
+        for start, end, lp, alts in spans:
+            a, b = char_at[start] - lead, char_at[end] - lead
+            if b > 0 and a < len(text):
+                tokens.append((max(0, a), min(len(text), b), lp, alts))
+        return text, tokens
+
+    def _chat(self, system: str, user: str, temperature: float, max_tokens: int,
+              seed: int | None, json_mode: bool, extra: dict | None) -> dict:
         port = self.ensure()
         body: dict = {
             "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
@@ -336,20 +396,32 @@ class ModelManager:
             body["seed"] = int(seed) % (2**31)
         if json_mode:
             body["response_format"] = {"type": "json_object"}
+        if extra:
+            body.update(extra)
+        return self._post(port, "/v1/chat/completions", body, timeout=600)
+
+    def tokenize(self, text: str) -> list[int]:
+        """Token ids for ``text`` in the loaded model's vocabulary."""
+        return list(self._post(self.ensure(), "/tokenize", {"content": text}, timeout=30)["tokens"])
+
+    def _post(self, port: int, path: str, body: dict, timeout: float) -> dict:
         req = urllib.request.Request(
-            f"http://127.0.0.1:{port}/v1/chat/completions",
+            f"http://127.0.0.1:{port}{path}",
             data=json.dumps(body).encode(),
             headers={"Content-Type": "application/json"},
         )
         try:
-            with _NO_PROXY.open(req, timeout=600) as r:
-                data = json.load(r)
+            with _NO_PROXY.open(req, timeout=timeout) as r:
+                return json.load(r)
         except urllib.error.HTTPError as exc:
-            raise ParaphraseError(f"the AI model returned an error ({exc.code})") from exc
+            try:
+                detail = json.load(exc).get("error", {}).get("message", "")
+            except (ValueError, AttributeError, OSError):
+                detail = ""
+            raise ParaphraseError(f"the AI model returned an error ({exc.code}){': ' + detail if detail else ''}") from exc
         except (urllib.error.URLError, OSError) as exc:
             self.stop()
             raise ParaphraseError("lost connection to the AI model; please try again") from exc
-        return _THINK.sub("", data["choices"][0]["message"]["content"] or "").strip()
 
 
 # ---------------------------------------------------------------- helpers

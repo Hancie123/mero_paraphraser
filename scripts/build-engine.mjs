@@ -32,6 +32,8 @@ run([
   "--paths", join(root, "python-engine"),
   // Prompt files are read at runtime from app/prompts.
   "--add-data", `${join(root, "python-engine", "app", "prompts")}${delimiter}app/prompts`,
+  // Generated synonyms (tools/build_lexicon.py), read by app/core/lexicon.py.
+  "--add-data", `${join(root, "python-engine", "app", "data")}${delimiter}app/data`,
   "--collect-submodules", "app",
   "--distpath", join(work, "dist"),
   "--workpath", join(work, "work"),

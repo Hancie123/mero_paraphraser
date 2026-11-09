@@ -77,8 +77,16 @@ class Layer5RefineTests(unittest.TestCase):
         self.assertGreaterEqual(r.fixes, 3)
 
     def test_leaves_author_phrases(self):
-        r = LanguageRefiner().refine("We delve into it.", "We delve into it.")
-        self.assertEqual(r.text, "We delve into it.")
+        r = LanguageRefiner().refine("It is worth noting that it works.", "It is worth noting that it works.")
+        self.assertEqual(r.text, "It is worth noting that it works.")
+
+    def test_plain_words_replace_ai_verbs_even_from_source(self):
+        r = LanguageRefiner().refine("We delve into it and utilize data. Foster care is paramount.", "We delve into it.")
+        self.assertEqual(r.text, "We look at it and use data. Foster care matters most.")
+
+    def test_robust_kept_in_academic_mode(self):
+        r = LanguageRefiner().refine("Robust estimates leverage the panel.", "x", "academic")
+        self.assertEqual(r.text, "Robust estimates leverage the panel.")
 
 
 class Layer6And7ValidationTests(unittest.TestCase):

@@ -14,7 +14,9 @@ from ..utils.text_utils import split_sentences
 
 NUMBER_RE = re.compile(r"(?<![\w\[])[-+]?\d+(?:[.,]\d+)*%?(?![\w\]])")
 NEGATION_RE = re.compile(
-    r"\b(?:not|no|never|none|nor|neither|nobody|nothing|nowhere|without|cannot|lack(?:s|ed|ing)?|fail(?:s|ed)? to)\b|n['’]t\b",
+    r"\b(?:not|no|never|none|nor|neither|nobody|nothing|nowhere|without|cannot|lack(?:s|ed|ing)?|fail(?:s|ed)? to|"
+    # negative words that carry the same meaning ("will not affect" -> "is unlikely to affect")
+    r"unlikely|unable|hardly|barely|scarcely|rarely|seldom|absent|free of)\b|n['’]t\b",
     re.IGNORECASE,
 )
 HEDGE_RE = re.compile(

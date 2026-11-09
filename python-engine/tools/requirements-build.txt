@@ -1,0 +1,4 @@
+# Only for tools/build_lexicon.py, which regenerates app/data/synonyms_extra.json.
+# The engine itself reads that JSON with the standard library and needs none of these.
+nltk>=3.9
+wordfreq>=3.1
