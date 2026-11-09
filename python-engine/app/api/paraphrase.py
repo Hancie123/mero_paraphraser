@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import threading
+
 from ..core.config import MODES, VERSION
 from ..core.model_manager import ModelManager
 from ..pipeline.orchestrator import ParaphrasePipeline
+from ..pipeline.rewriting_engine import RewritingEngine
 from ..schemas.paraphrase import ParaphraseError, ParaphraseRequest
 
 model_manager = ModelManager()
@@ -34,5 +37,19 @@ def handle(req: dict) -> dict:
     if cmd == "ai_remove":
         return model_manager.remove()
     if cmd == "ai_warm":
-        return model_manager.warm()
+        status = model_manager.warm()
+        threading.Thread(target=_warm_tokens, daemon=True).start()
+        return status
     raise ParaphraseError(f"unknown command {cmd!r}")
+
+
+def _warm_tokens() -> None:
+    """Look up the token ids for the avoided words once the model is up.
+
+    Otherwise the first paraphrase makes ~250 sequential /tokenize calls before it can start.
+    """
+    try:
+        model_manager.ensure()
+        RewritingEngine(model_manager, True).avoid_bias("")
+    except Exception:
+        pass  # the first paraphrase will try again

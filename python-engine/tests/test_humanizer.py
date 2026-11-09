@@ -130,7 +130,8 @@ class ScoringTests(unittest.TestCase):
         from app.pipeline.rewriting_engine import build_user_prompt
         from app.schemas.paraphrase import Context, Facts
         p = build_user_prompt("Studies suggest it may not work.", "standard", 60, Context("general", [], [], []), Facts())
-        self.assertIn("suggest, may.", p)
+        self.assertIn("(suggest, may)", p)
+        self.assertIn("don't add hedges", p)
         self.assertIn("Keep every negation (not)", p)
 
     def test_splice_tokens(self):

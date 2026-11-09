@@ -88,8 +88,12 @@ def build_user_prompt(text: str, mode: str, strength: int, context: Context, fac
     # which makes claims stronger than the author wrote. Name the exact words to keep.
     hedges = _unique(HEDGE_RE.findall(text))
     if hedges:
-        lines.append("Keep the hedging: use these words (or ones just as tentative, such as may, might, "
-                     "likely, suggests, appears): " + ", ".join(hedges[:8]) + ".")
+        lines.append("Keep exactly the hedging the original has (" + ", ".join(hedges[:8]) + "): keep these "
+                     "words or ones just as tentative where they are, and don't add hedges (may, might, "
+                     "potentially, it could be argued) to anything the original states plainly.")
+    else:
+        lines.append("The original states its claims plainly: don't add hedges such as may, might or "
+                     "potentially, and don't add caveats.")
     negations = _unique(NEGATION_RE.findall(text))
     if negations:
         lines.append("Keep every negation (" + ", ".join(negations[:8]) + "), or say the same thing with "
@@ -161,15 +165,26 @@ class RewritingEngine:
         temp = temperature(mode, strength, retry=bool(feedback))
         max_tokens = min(2048, int(len(text) / 2.5) + 128)
 
-        def one(s: int | None) -> Draft:
-            reply, tokens = self.models.complete_scored(system, user, temperature=temp, max_tokens=max_tokens,
-                                                        seed=s, extra=extra)
+        def make(reply: str, tokens: Tokens) -> Draft:
             draft = clean_draft(reply, text, tokens)
             draft.prompt = user
             return draft
 
+        def one(s: int | None) -> Draft:
+            return make(*self.models.complete_scored(system, user, temperature=temp, max_tokens=max_tokens,
+                                                     seed=s, extra=extra))
+
         if n == 1:
             return [one(seeds[0])]
+        # One request for all drafts: the prompt is read once, not once per draft.
+        try:
+            shared = self.models.complete_scored_many(system, user, n=n, temperature=temp,
+                                                      max_tokens=max_tokens, seed=seeds[0], extra=extra)
+        except ParaphraseError:
+            shared = []
+        if len(shared) == n:
+            return [make(reply, tokens) for reply, tokens in shared]
+        # Older llama.cpp without n_cmpl (or the request failed): separate parallel requests.
         with ThreadPoolExecutor(max_workers=n) as pool:
             results = list(pool.map(lambda s: _try(one, s), seeds))
         good = [r for r in results if isinstance(r, Draft)]

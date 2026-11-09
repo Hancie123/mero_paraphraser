@@ -347,37 +347,32 @@ class ModelManager:
         how predictable each piece of the reply was. Several calls can run at
         once from different threads; llama-server batches them (config.PARALLEL).
         """
-        data = self._chat(system, user, temperature, max_tokens, seed, False,
-                          {**(extra or {}), "logprobs": True, "top_logprobs": 10})
-        choice = data["choices"][0]
-        content = choice["message"]["content"] or ""
-        raw = bytearray()
-        spans: list[tuple[int, int, float, tuple[str, ...]]] = []
-        for tok in (choice.get("logprobs") or {}).get("content") or []:
-            piece = bytes(tok.get("bytes") or tok.get("token", "").encode("utf-8"))
-            alts = tuple(t.get("token", "") for t in tok.get("top_logprobs") or [] if t.get("logprob", -99) > -6)
-            spans.append((len(raw), len(raw) + len(piece), float(tok.get("logprob", 0.0)), alts))
-            raw += piece
-        decoded = raw.decode("utf-8", "replace")
-        if decoded.strip() != content.strip() or _THINK.search(content):
-            return _THINK.sub("", content).strip(), []  # can't align tokens with the text
-        # byte offsets -> character offsets in the stripped text
-        char_at = [0] * (len(raw) + 1)
-        pos = 0
-        for i, ch in enumerate(decoded):
-            n = len(ch.encode("utf-8"))
-            for b in range(n):
-                char_at[pos + b] = i
-            pos += n
-        char_at[pos:] = [len(decoded)] * (len(char_at) - pos)
-        lead = len(decoded) - len(decoded.lstrip())
-        text = decoded.strip()
-        tokens = []
-        for start, end, lp, alts in spans:
-            a, b = char_at[start] - lead, char_at[end] - lead
-            if b > 0 and a < len(text):
-                tokens.append((max(0, a), min(len(text), b), lp, alts))
-        return text, tokens
+        return self.complete_scored_many(system, user, n=1, temperature=temperature, max_tokens=max_tokens,
+                                         seed=seed, extra=extra)[0]
+
+    def complete_scored_many(
+        self,
+        system: str,
+        user: str,
+        *,
+        n: int,
+        temperature: float = 0.7,
+        max_tokens: int = 1024,
+        seed: int | None = None,
+        extra: dict | None = None,
+    ) -> list[tuple[str, list[tuple[int, int, float, tuple[str, ...]]]]]:
+        """``n`` scored completions of one prompt in a single request (llama.cpp ``n_cmpl``).
+
+        The server reads the prompt once and copies it to the other slots, instead of
+        each parallel request reading it again; on a CPU that is most of the time.
+        May return fewer than ``n`` results if the server ignores ``n_cmpl``.
+        """
+        options = {**(extra or {}), "logprobs": True, "top_logprobs": 10}
+        if n > 1:
+            options["n_cmpl"] = n
+        data = self._chat(system, user, temperature, max_tokens, seed, False, options)
+        choices = sorted(data["choices"], key=lambda c: c.get("index", 0))
+        return [_scored(c) for c in choices[:n]]
 
     def _chat(self, system: str, user: str, temperature: float, max_tokens: int,
               seed: int | None, json_mode: bool, extra: dict | None) -> dict:
@@ -410,9 +405,17 @@ class ModelManager:
             data=json.dumps(body).encode(),
             headers={"Content-Type": "application/json"},
         )
+        started = time.perf_counter()
         try:
             with _NO_PROXY.open(req, timeout=timeout) as r:
-                return json.load(r)
+                data = json.load(r)
+            if _PROFILE:
+                _log_timing(path, time.perf_counter() - started, data)
+            return data
+        except TimeoutError as exc:
+            # A slow reply is not a dead server: stopping it here would also kill the other
+            # drafts still being generated in parallel, and the next request would reload the model.
+            raise ParaphraseError("the AI model took too long to reply; try a shorter text") from exc
         except urllib.error.HTTPError as exc:
             try:
                 detail = json.load(exc).get("error", {}).get("message", "")
@@ -425,6 +428,51 @@ class ModelManager:
 
 
 # ---------------------------------------------------------------- helpers
+
+# MERO_PROFILE=1 prints one line per model call to stderr (the app's stdout is the protocol).
+_PROFILE = bool(os.environ.get("MERO_PROFILE"))
+
+
+def _log_timing(path: str, seconds: float, data: dict) -> None:
+    t = data.get("timings") or {}
+    detail = ""
+    if t:
+        detail = (f" prompt {t.get('prompt_n', 0)} tok in {t.get('prompt_ms', 0) / 1000:.1f}s,"
+                  f" output {t.get('predicted_n', 0)} tok in {t.get('predicted_ms', 0) / 1000:.1f}s"
+                  f" ({t.get('predicted_per_second', 0):.1f} tok/s)")
+    print(f"[mero] {path} {seconds:.2f}s{detail}", file=sys.stderr, flush=True)
+
+
+def _scored(choice: dict) -> tuple[str, list[tuple[int, int, float, tuple[str, ...]]]]:
+    """A completion's text and its tokens' (start, end, logprob, alternatives) in that text."""
+    content = choice["message"]["content"] or ""
+    raw = bytearray()
+    spans: list[tuple[int, int, float, tuple[str, ...]]] = []
+    for tok in (choice.get("logprobs") or {}).get("content") or []:
+        piece = bytes(tok.get("bytes") or tok.get("token", "").encode("utf-8"))
+        alts = tuple(t.get("token", "") for t in tok.get("top_logprobs") or [] if t.get("logprob", -99) > -6)
+        spans.append((len(raw), len(raw) + len(piece), float(tok.get("logprob", 0.0)), alts))
+        raw += piece
+    decoded = raw.decode("utf-8", "replace")
+    if decoded.strip() != content.strip() or _THINK.search(content):
+        return _THINK.sub("", content).strip(), []  # can't align tokens with the text
+    # byte offsets -> character offsets in the stripped text
+    char_at = [0] * (len(raw) + 1)
+    pos = 0
+    for i, ch in enumerate(decoded):
+        n = len(ch.encode("utf-8"))
+        for b in range(n):
+            char_at[pos + b] = i
+        pos += n
+    char_at[pos:] = [len(decoded)] * (len(char_at) - pos)
+    lead = len(decoded) - len(decoded.lstrip())
+    text = decoded.strip()
+    tokens = []
+    for start, end, lp, alts in spans:
+        a, b = char_at[start] - lead, char_at[end] - lead
+        if b > 0 and a < len(text):
+            tokens.append((max(0, a), min(len(text), b), lp, alts))
+    return text, tokens
 
 
 def _sha256(path: Path) -> str:

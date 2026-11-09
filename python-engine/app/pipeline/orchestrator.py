@@ -21,7 +21,10 @@ faces the model's meaning check, which is the slow part.
 
 from __future__ import annotations
 
+import os
 import random
+import sys
+import time
 from dataclasses import dataclass
 
 from ..core.config import MAX_ATTEMPTS, drafts_for
@@ -42,6 +45,7 @@ from .rewriting_engine import RewritingEngine, prompt
 from .semantic_analyzer import SemanticAnalyzer, facts_for
 
 MAX_JUDGED = 2  # drafts the model's meaning check may look at per attempt
+_PROFILE = bool(os.environ.get("MERO_PROFILE"))  # per-part timing on stderr
 
 
 @dataclass
@@ -86,7 +90,11 @@ class ParaphrasePipeline:
         for i, (piece, rewrite) in enumerate(chunk_text(processed.masked)):
             chunk = ChunkResult(index=sum(1 for c in chunks if c.rewrite) + 1, source=piece, output=piece, rewrite=rewrite)
             if rewrite:
+                started = time.perf_counter()
                 self._rewrite_part(chunk, mode, strength, context, None if seed is None else seed + i * 7)
+                if _PROFILE:
+                    print(f"[mero] part {chunk.index}: {len(piece)} chars, {chunk.attempts} attempt(s), "
+                          f"{time.perf_counter() - started:.1f}s", file=sys.stderr, flush=True)
             chunks.append(chunk)
 
         final = restore("".join(c.output for c in chunks), processed.protected) + processed.references
@@ -136,7 +144,7 @@ class ParaphrasePipeline:
             if winner is not None:
                 if len(trials) > 1:
                     worst = min((t for t in trials if t is not winner), key=lambda t: t.score.total)
-                    record_preference(prompt("system.txt"), winner.prompt, winner.result.output, worst.raw,
+                    record_preference(prompt("system.txt"), winner.prompt, winner.result.output, worst.result.output,
                                       {"chosen": winner.score.total, "rejected": worst.score.total, "mode": mode})
                 break
             feedback = trials[0].result.issues
