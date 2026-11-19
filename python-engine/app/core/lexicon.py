@@ -156,7 +156,7 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (V, ["emphasize", "stress", "highlight", "underline"], ["emphasize"]),
     # --- nouns ------------------------------------------------------------
     (N, ["problem", "issue", "difficulty", "challenge"], None),
-    (N, ["idea", "concept", "notion", "thought"], None),
+    (N, ["idea", "concept", "notion", "thought"], ["idea", "concept", "notion"]),  # "I thought"
     (N, ["result", "outcome", "consequence"], ["outcome", "consequence"]),
     (N, ["goal", "aim", "objective", "target"], ["goal", "objective"]),
     (N, ["method", "approach", "technique", "way"], ["method", "technique"]),
@@ -202,6 +202,121 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (N, ["story", "tale", "narrative", "account"], ["story", "tale", "narrative"]),
     (N, ["gift", "present"], ["gift"]),
     (N, ["noise", "racket", "din"], None),
+    # --- added for coverage (keys avoid words with a common second part of speech) ---
+    (A, ["vital", "essential", "critical"], ["vital"]),
+    (A, ["appropriate", "suitable", "fitting"], ["appropriate", "suitable"]),
+    (A, ["relevant", "pertinent", "applicable"], ["relevant", "pertinent"]),
+    (A, ["sudden", "abrupt", "unexpected"], ["sudden", "abrupt"]),
+    (A, ["constant", "continual", "persistent"], ["constant", "continual"]),
+    (A, ["specific", "particular", "precise"], ["specific"]),
+    (A, ["complicated", "complex", "involved"], ["complicated"]),
+    (A, ["vast", "immense", "enormous"], ["vast"]),
+    (A, ["slight", "small", "minor"], ["slight"]),
+    (A, ["considerable", "substantial", "sizable"], ["considerable", "substantial"]),
+    (A, ["obtainable", "available", "accessible"], ["obtainable"]),
+    (A, ["competent", "capable", "skilled"], ["competent"]),
+    (A, ["eager", "keen", "enthusiastic"], ["eager", "enthusiastic"]),
+    (A, ["harmful", "damaging", "detrimental"], None),
+    (A, ["equitable", "fair", "even-handed"], ["equitable"]),
+    (A, ["expensive", "costly", "pricey"], ["expensive", "costly"]),
+    (A, ["affordable", "inexpensive", "cheap"], ["affordable", "inexpensive"]),
+    (A, ["previous", "prior", "earlier", "former"], ["previous"]),
+    (A, ["initial", "first", "opening"], ["initial"]),
+    (A, ["distinctive", "unique", "characteristic"], ["distinctive"]),
+    (A, ["ongoing", "continuing", "current"], ["ongoing", "continuing"]),
+    (A, ["outdated", "obsolete", "old-fashioned"], ["outdated", "obsolete"]),
+    (A, ["workable", "practical", "realistic"], ["workable"]),
+    (A, ["reliable", "dependable", "trustworthy"], None),
+    (A, ["flexible", "adaptable", "versatile"], None),
+    (A, ["worldwide", "global", "international"], ["worldwide"]),
+    (A, ["annual", "yearly"], None),
+    (A, ["extensive", "broad", "wide-ranging"], ["extensive"]),
+    (A, ["restricted", "limited", "narrow"], ["restricted"]),
+    (A, ["surprising", "unexpected", "startling"], ["surprising", "startling"]),
+    (A, ["worried", "anxious", "uneasy", "concerned"], ["worried", "anxious", "uneasy"]),
+    (A, ["visible", "observable", "noticeable"], ["visible", "observable"]),
+    (A, ["optimal", "ideal", "best"], ["optimal"]),
+    (A, ["fundamental", "basic", "core"], ["fundamental"]),
+    (A, ["genuine", "real", "authentic"], ["genuine", "authentic"]),
+    (R, ["increasingly", "progressively", "more and more"], ["increasingly", "progressively"]),
+    (R, ["merely", "simply", "only"], ["merely"]),
+    (R, ["initially", "at first", "originally"], ["initially"]),
+    (R, ["previously", "earlier", "formerly"], ["previously", "formerly"]),
+    (R, ["subsequently", "later", "afterwards"], ["subsequently", "afterwards"]),
+    (R, ["deliberately", "intentionally", "on purpose"], ["deliberately", "intentionally"]),
+    (R, ["accidentally", "unintentionally", "by accident"], ["accidentally", "unintentionally"]),
+    (R, ["forcefully", "strongly", "firmly"], ["forcefully"]),
+    (R, ["extensively", "widely", "broadly"], ["extensively"]),
+    (R, ["properly", "correctly", "appropriately"], ["properly", "correctly"]),
+    (R, ["constantly", "continually", "continuously", "all the time"], ["constantly", "continually"]),
+    (R, ["occasionally", "sometimes", "at times", "now and then"], ["occasionally"]),
+    (R, ["slightly", "marginally", "a little"], ["slightly", "marginally"]),
+    (R, ["greatly", "considerably", "substantially"], ["greatly"]),
+    (R, ["truly", "genuinely", "really"], ["truly", "genuinely"]),
+    (R, ["simultaneously", "concurrently", "at the same time"], ["simultaneously", "concurrently"]),
+    (R, ["separately", "individually", "independently"], ["separately", "individually"]),
+    (R, ["thoroughly", "comprehensively", "in depth"], ["thoroughly", "comprehensively"]),
+    (R, ["precisely", "exactly"], None),
+    (V, ["assess", "evaluate", "gauge", "appraise"], ["assess", "evaluate"]),
+    (V, ["assessed", "evaluated", "gauged"], ["assessed", "evaluated"]),
+    (V, ["assessing", "evaluating", "gauging"], ["assessing", "evaluating"]),
+    (V, ["investigated", "examined", "explored", "studied"], ["investigated", "examined"]),
+    (V, ["examining", "investigating", "exploring"], ["examining", "investigating"]),
+    (V, ["identify", "pinpoint", "recognize", "spot"], ["identify"]),
+    (V, ["identified", "pinpointed", "recognized"], ["identified"]),
+    (V, ["increase", "raise", "boost"], ["increase"]),
+    (V, ["eliminate", "remove", "get rid of"], ["eliminate"]),
+    (V, ["eliminated", "removed", "got rid of"], ["eliminated"]),
+    (V, ["encourage", "motivate", "inspire", "urge"], ["encourage", "motivate"]),
+    (V, ["encouraged", "motivated", "inspired", "urged"], ["encouraged", "motivated"]),
+    (V, ["establish", "set up", "create"], ["establish"]),
+    (V, ["established", "set up", "created"], ["established"]),
+    (V, ["expand", "extend", "broaden", "widen"], ["expand", "broaden", "widen"]),
+    (V, ["combine", "merge", "blend", "integrate"], ["combine", "merge"]),
+    (V, ["combined", "merged", "blended", "integrated"], ["combined", "merged"]),
+    (V, ["predict", "forecast", "anticipate"], ["predict", "forecast"]),
+    (V, ["predicted", "forecast", "anticipated"], ["predicted"]),
+    (V, ["respond", "reply", "answer"], ["respond"]),
+    (V, ["responded", "replied", "answered"], ["responded", "replied"]),
+    (V, ["participate", "take part", "engage"], ["participate"]),
+    (V, ["participated", "took part", "engaged"], ["participated"]),
+    (V, ["participating", "taking part", "engaging"], ["participating"]),
+    (V, ["ignore", "overlook", "disregard", "neglect"], ["ignore", "overlook", "disregard"]),
+    (V, ["ignored", "overlooked", "disregarded", "neglected"], ["ignored", "overlooked", "disregarded"]),
+    (V, ["persuade", "convince"], None),
+    (V, ["persuaded", "convinced"], None),
+    (V, ["foresee", "anticipate", "expect"], ["foresee", "anticipate"]),
+    (V, ["emerge", "surface", "arise"], ["emerge"]),
+    (V, ["emerged", "surfaced", "arose"], ["emerged"]),
+    (V, ["handle", "manage", "deal with"], ["handle"]),
+    (V, ["handled", "managed", "dealt with"], ["handled"]),
+    (V, ["verify", "validate", "check"], ["verify", "validate"]),
+    (V, ["verified", "validated", "checked"], ["verified", "validated"]),
+    (N, ["aspect", "facet", "dimension", "feature"], ["aspect", "facet"]),
+    (N, ["factor", "element", "component"], ["factor"]),
+    (N, ["impact", "effect", "influence"], ["impact"]),
+    (N, ["decision", "choice"], ["decision"]),
+    (N, ["domain", "field", "area", "sphere"], ["domain", "sphere"]),
+    (N, ["procedure", "process"], ["procedure"]),
+    (N, ["strategy", "plan", "tactic"], ["strategy", "tactic"]),
+    (N, ["requirement", "prerequisite", "condition"], ["requirement", "prerequisite"]),
+    (N, ["trend", "tendency", "pattern"], ["trend", "tendency"]),
+    (N, ["shortage", "scarcity", "deficit"], ["shortage", "scarcity"]),
+    (N, ["region", "area", "zone"], ["region", "zone"]),
+    (N, ["discovery", "finding"], ["discovery"]),
+    (N, ["improvement", "enhancement", "advance", "gain"], ["improvement", "enhancement"]),
+    (N, ["reduction", "decrease", "decline", "drop"], ["reduction"]),
+    (N, ["employee", "worker", "staff member"], ["employee", "worker"]),
+    (N, ["company", "firm", "business"], ["company"]),
+    (N, ["supervisor", "manager"], ["supervisor"]),
+    (N, ["conversation", "dialogue", "discussion", "exchange"], ["conversation", "dialogue"]),
+    (N, ["situation", "scenario", "circumstance", "case"], ["situation", "scenario"]),
+    (N, ["limitation", "constraint", "restriction"], None),
+    (N, ["option", "alternative", "choice"], ["option"]),
+    (N, ["obstacle", "barrier", "hurdle", "impediment"], ["obstacle", "barrier", "hurdle"]),
+    (N, ["solution", "remedy", "answer", "fix"], ["solution", "remedy"]),
+    (N, ["era", "period", "age", "epoch"], ["era", "epoch"]),
+    (N, ["specialist", "expert"], ["specialist"]),
 ]
 
 IRREGULAR_PLURALS = {
@@ -248,11 +363,11 @@ def pluralize(phrase: str, pos: str) -> str:
 _IRREGULAR_SINGULAR = {plural: single for single, plural in IRREGULAR_PLURALS.items()}
 
 
-def synonyms_for(word: str) -> list[str] | None:
-    """Return replacement candidates for a lowercase word, or ``None``."""
+def lookup(word: str) -> tuple[str, list[str]] | None:
+    """``(part_of_speech, candidates)`` for a lowercase word, or ``None``."""
     entry = SYNONYMS.get(word)
     if entry:
-        return list(entry[1])
+        return entry[0], list(entry[1])
     bases = []
     if word in _IRREGULAR_SINGULAR:
         bases.append(_IRREGULAR_SINGULAR[word])
@@ -265,8 +380,52 @@ def synonyms_for(word: str) -> list[str] | None:
     for base in bases:
         entry = SYNONYMS.get(base)
         if entry and entry[0] in (N, V) and pluralize(base, entry[0]) == word:
-            return [pluralize(alt, entry[0]) for alt in entry[1]]
+            return entry[0], [pluralize(alt, entry[0]) for alt in entry[1]]
     return None
+
+
+def synonyms_for(word: str) -> list[str] | None:
+    """Return replacement candidates for a lowercase word, or ``None``."""
+    found = lookup(word)
+    return found[1] if found else None
+
+
+# --- words the rewrite never swaps --------------------------------------------
+#
+# Hedges set how certain a claim is, negations flip it, and reporting verbs
+# ("suggest", "indicate", "show") carry how strong the evidence is. Swapping
+# them ("the results suggest" -> "the results propose") changes the meaning,
+# so they are never replaced and never offered as replacements.
+
+def _forms(*bases: str) -> set[str]:
+    out: set[str] = set()
+    for b in bases:
+        stem = b[:-1] if b.endswith("e") else b
+        out |= {b, b + "s", stem + "ed", stem + "ing"}
+        if b.endswith("y") and b[-2] not in "aeiou":
+            out |= {b[:-1] + "ies", b[:-1] + "ied"}
+    return out
+
+
+HEDGES = frozenset({
+    "may", "might", "could", "possibly", "perhaps", "probably", "likely", "unlikely", "potentially",
+    "approximately", "roughly", "arguably", "somewhat", "partly", "partially", "apparently",
+    "presumably", "maybe", "conceivably", "seemingly", "supposedly", "allegedly",
+} | _forms("suggest", "appear", "seem", "tend"))
+NEGATIONS = frozenset({
+    "not", "no", "never", "none", "nor", "neither", "nobody", "nothing", "nowhere", "without",
+    "cannot", "unable", "hardly", "barely", "scarcely", "rarely", "seldom", "absent", "infrequently",
+} | _forms("lack", "fail"))
+REPORTING = frozenset(_forms(
+    "indicate", "imply", "propose", "claim", "argue", "assert", "contend", "state", "mention", "note",
+    "report", "recommend", "conclude", "demonstrate", "show", "reveal", "prove", "confirm",
+) | {"shown", "proven", "implied", "implies"})
+FROZEN = HEDGES | NEGATIONS | REPORTING
+
+
+def is_frozen(phrase: str) -> bool:
+    """True if any word of ``phrase`` is a hedge, negation or reporting verb."""
+    return any(w in FROZEN or w.endswith(("n't", "n\u2019t")) for w in phrase.lower().split())
 
 
 # --- generated synonyms (app/data/synonyms_extra.json, built by tools/build_lexicon.py) ---
@@ -330,6 +489,8 @@ CASUAL = {
     "right away",
     "straight away",
     "e.g.",
+    "pricey",
+    "cheap",
 }
 
 # --- phrase tables: tuple-of-lowercase-words -> replacement options ----------
@@ -387,6 +548,90 @@ GENERAL_PHRASES = _table(
         "the majority of": ["most"],
         "make sure that": ["ensure that", "confirm that"],
         "try to": ["attempt to", "strive to", "seek to"],
+        "in addition to": ["besides", "as well as"],
+        "in addition": ["also", "on top of that"],
+        "a great deal of": ["much", "a lot of"],
+        "in terms of": ["regarding", "when it comes to"],
+        "as soon as": ["once", "the moment"],
+        "at this point in time": ["now", "at this point"],
+        "at the moment": ["right now", "currently", "at present"],
+        "in particular": ["particularly", "especially"],
+        "on the other hand": ["by contrast", "then again"],
+        "in contrast": ["by contrast", "conversely"],
+        "in general": ["generally", "on the whole"],
+        "a wide range of": ["a broad range of", "many different", "a variety of"],
+        "a variety of": ["a range of", "various"],
+        "a large number of": ["many", "a great many"],
+        "a small number of": ["a few", "a handful of"],
+        "is able to": ["can"],
+        "are able to": ["can"],
+        "was able to": ["could", "managed to"],
+        "were able to": ["could", "managed to"],
+        "has the ability to": ["can", "is able to"],
+        "have the ability to": ["can", "are able to"],
+        "in light of": ["given", "considering"],
+        "with respect to": ["regarding", "concerning"],
+        "in relation to": ["regarding", "concerning"],
+        "as a consequence": ["as a result"],
+        "for the purpose of": ["for"],
+        "in the course of": ["during"],
+        "take into account": ["consider", "allow for"],
+        "takes into account": ["considers"],
+        "took into account": ["considered"],
+        "taken into account": ["considered"],
+        "make use of": ["use"],
+        "makes use of": ["uses"],
+        "made use of": ["used"],
+        "turned out to be": ["proved to be"],
+        "bring about": ["cause", "produce"],
+        "brings about": ["causes", "produces"],
+        "brought about": ["caused", "produced"],
+        "keep in mind": ["remember", "bear in mind"],
+        "bear in mind": ["keep in mind", "remember"],
+        "in the long run": ["over time", "eventually"],
+        "in the long term": ["over time"],
+        "at first": ["initially"],
+        "in fact": ["actually", "in reality"],
+        "of course": ["naturally"],
+        "in other words": ["put simply", "that is"],
+        "even though": ["although", "though"],
+        "although": ["though", "even though"],
+        "is made up of": ["consists of", "is composed of"],
+        "are made up of": ["consist of", "are composed of"],
+        "consists of": ["is made up of", "comprises"],
+        "as a whole": ["overall"],
+        "each and every": ["every"],
+        "first and foremost": ["first", "above all"],
+        "in today's world": ["today", "these days"],
+        "nowadays": ["these days", "today"],
+        "in recent years": ["over the past few years", "recently"],
+        "so as to": ["to", "in order to"],
+        "by means of": ["through", "by"],
+        "in accordance with": ["in line with", "following"],
+        "with the exception of": ["except", "apart from"],
+        "apart from": ["besides", "aside from"],
+        "aside from": ["apart from", "besides"],
+        "in comparison with": ["compared with"],
+        "in comparison to": ["compared to"],
+        "in response to": ["in reply to"],
+        "in the meantime": ["meanwhile"],
+        "meanwhile": ["in the meantime"],
+        "as opposed to": ["rather than", "instead of"],
+        "in my opinion": ["in my view", "to my mind"],
+        "for this reason": ["because of this", "for that reason"],
+        "in spite of the fact that": ["although", "even though"],
+        "despite the fact that": ["although", "even though"],
+        "until now": ["so far", "to date"],
+        "a couple of": ["a few"],
+        "contribute to": ["add to", "play a part in"],
+        "contributes to": ["adds to", "plays a part in"],
+        "contributed to": ["added to", "played a part in"],
+        "focus on": ["concentrate on", "center on"],
+        "focuses on": ["concentrates on", "centers on"],
+        "focused on": ["concentrated on", "centered on"],
+        "rely on": ["depend on", "count on"],
+        "relies on": ["depends on"],
+        "relied on": ["depended on"],
     }
 )
 
