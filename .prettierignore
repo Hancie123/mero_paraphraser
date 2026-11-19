@@ -1,0 +1,9 @@
+dist/
+build/
+release/
+node_modules/
+src-tauri/target/
+src-tauri/gen/
+pnpm-lock.yaml
+python-engine/
+*.css

@@ -24,7 +24,9 @@ def check_tokens(source: str, output: str) -> tuple[list[str], bool]:
     extra = sorted(set(got) - set(want), key=int)
     doubled = sorted((t for t in want if got[t] > want[t]), key=int)
     if missing:
-        issues.append(f"Dropped {len(missing)} citation or quotation marker(s): " + ", ".join(f"[[{t}]]" for t in missing) + ".")
+        issues.append(
+            f"Dropped {len(missing)} citation or quotation marker(s): " + ", ".join(f"[[{t}]]" for t in missing) + "."
+        )
     if extra or doubled:
         issues.append("Repeated or unknown citation markers.")
     invented = CITATION_RE.findall(PLACEHOLDER_RE.sub(" ", output))

@@ -31,19 +31,19 @@ Text goes through an eight-layer pipeline. It rewrites the prose, checks that nu
 
 ## Features
 
-| | |
-|---|---|
-| ✍️ **Humanize mode** | Natural, everyday rewording with varied sentence rhythm, natural connectors and contractions |
-| 🎚️ **Changes slider** | Controls how much of the text is rewritten, from light edits to a thorough rewrite |
-| 🔍 **Reviewable edits** | Changes are colour-coded by size (word, phrase, sentence, added), with a count of each under the result. Click one to pick another alternative or restore the original |
-| 🛡️ **Fact checks** | Numbers, names, negations and hedging words ("may", "suggests") must survive, or the part is rewritten again |
-| 📚 **Citation-safe** | Citations (`(Smith, 2020)`, `[3]`), quotations, links, DOIs and the reference list are kept exactly as written. No citation is ever added |
-| 🧭 **Section-aware** | Prose sections such as Abstract, Introduction and Discussion are rewritten. Headings, tables, equations, Keywords, Funding, Declarations and similar sections are left untouched |
-| 💻 **Code-safe** | In code blocks, only comments and docstrings are reworded. The code is checked afterwards (for Python, its syntax tree too), and the block is restored if anything changed |
-| 🧹 **Plainer wording** | Stock phrases like "delve into", "plays a pivotal role" and "a myriad of" are replaced, and em dashes become ordinary punctuation |
-| 👻 **Invisible-character cleanup** | Removes zero-width spaces, BOMs, soft hyphens, stray bidi controls and hidden tag characters, but keeps the joiners that Nepali, Hindi, Arabic and emoji need |
-| 📄 **Word files** | Opens `.docx` files and saves results as `.docx` without document properties. *File › Remove personal info from a Word file* strips author names, dates, revision IDs and template paths from an existing document |
-| ⚡ **Fast and private** | Fully offline. The engine uses only the Python standard library |
+|                                    |                                                                                                                                                                                                                    |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| ✍️ **Humanize mode**               | Natural, everyday rewording with varied sentence rhythm, natural connectors and contractions                                                                                                                       |
+| 🎚️ **Changes slider**              | Controls how much of the text is rewritten, from light edits to a thorough rewrite                                                                                                                                 |
+| 🔍 **Reviewable edits**            | Changes are colour-coded by size (word, phrase, sentence, added), with a count of each under the result. Click one to pick another alternative or restore the original                                             |
+| 🛡️ **Fact checks**                 | Numbers, names, negations and hedging words ("may", "suggests") must survive, or the part is rewritten again                                                                                                       |
+| 📚 **Citation-safe**               | Citations (`(Smith, 2020)`, `[3]`), quotations, links, DOIs and the reference list are kept exactly as written. No citation is ever added                                                                          |
+| 🧭 **Section-aware**               | Prose sections such as Abstract, Introduction and Discussion are rewritten. Headings, tables, equations, Keywords, Funding, Declarations and similar sections are left untouched                                   |
+| 💻 **Code-safe**                   | In code blocks, only comments and docstrings are reworded. The code is checked afterwards (for Python, its syntax tree too), and the block is restored if anything changed                                         |
+| 🧹 **Plainer wording**             | Stock phrases like "delve into", "plays a pivotal role" and "a myriad of" are replaced, and em dashes become ordinary punctuation                                                                                  |
+| 👻 **Invisible-character cleanup** | Removes zero-width spaces, BOMs, soft hyphens, stray bidi controls and hidden tag characters, but keeps the joiners that Nepali, Hindi, Arabic and emoji need                                                      |
+| 📄 **Word files**                  | Opens `.docx` files and saves results as `.docx` without document properties. _File › Remove personal info from a Word file_ strips author names, dates, revision IDs and template paths from an existing document |
+| ⚡ **Fast and private**            | Fully offline. The engine uses only the Python standard library                                                                                                                                                    |
 
 ### What it won't do
 
@@ -62,16 +62,16 @@ It doesn't invent examples, data, opinions or citations. It doesn't add or remov
 
 ### The eight-layer pipeline
 
-| # | Layer | Responsibility |
-|:-:|---|---|
-| 1 | **Input processing** | Cleans invisible characters and line endings. Detects sections, code, tables and math (`sections.py`). Sets the reference list aside. Replaces citations, quotations, links, DOIs and code with `[[n]]` placeholder tokens |
-| 2 | **Context analysis** | Detects the register (academic, professional or general), proper names, acronyms, key terms and logical relationships between ideas |
-| 3 | **Semantic understanding** | Records what each part must keep: numbers, names, negations and hedges |
-| 4 | **Rewriting** | The rule-based engine applies phrase rewrites, synonym swaps and contractions. It writes 2–3 drafts with different seeds |
-| 5 | **Language refinement** | Fixes spacing, punctuation, doubled words, capitals and "a"/"an". Replaces stock phrases and restructures the patterns AI detectors look for |
-| 6 | **Meaning validation** | Checks the Layer 3 facts and the change in length |
-| 7 | **Citation validation** | Every placeholder must come back exactly once, and no new citations may appear. On the final text, citations, quotations and references must match the original exactly |
-| 8 | **Final output** | Builds the highlighted change list, the per-layer report and plain-language explanations |
+|  #  | Layer                      | Responsibility                                                                                                                                                                                                             |
+| :-: | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|  1  | **Input processing**       | Cleans invisible characters and line endings. Detects sections, code, tables and math (`sections.py`). Sets the reference list aside. Replaces citations, quotations, links, DOIs and code with `[[n]]` placeholder tokens |
+|  2  | **Context analysis**       | Detects the register (academic, professional or general), proper names, acronyms, key terms and logical relationships between ideas                                                                                        |
+|  3  | **Semantic understanding** | Records what each part must keep: numbers, names, negations and hedges                                                                                                                                                     |
+|  4  | **Rewriting**              | The rule-based engine applies phrase rewrites, synonym swaps and contractions. It writes 2–3 drafts with different seeds                                                                                                   |
+|  5  | **Language refinement**    | Fixes spacing, punctuation, doubled words, capitals and "a"/"an". Replaces stock phrases and restructures the patterns AI detectors look for                                                                               |
+|  6  | **Meaning validation**     | Checks the Layer 3 facts and the change in length                                                                                                                                                                          |
+|  7  | **Citation validation**    | Every placeholder must come back exactly once, and no new citations may appear. On the final text, citations, quotations and references must match the original exactly                                                    |
+|  8  | **Final output**           | Builds the highlighted change list, the per-layer report and plain-language explanations                                                                                                                                   |
 
 Layers 4–7 run on one part of the text at a time. The draft with the fewest problems and the most varied rhythm wins. A part that fails validation is rewritten once more, and if its citations still can't be preserved, it's kept unchanged.
 
@@ -89,11 +89,11 @@ AI detectors look at how predictable the wording is, how much sentence length va
 
 ### Prerequisites
 
-| Tool | Version |
-|---|---|
-| [Node.js](https://nodejs.org/) | 20 or later |
-| [pnpm](https://pnpm.io/) | latest |
-| [Rust](https://rustup.rs/) | stable |
+| Tool                              | Version       |
+| --------------------------------- | ------------- |
+| [Node.js](https://nodejs.org/)    | 20 or later   |
+| [pnpm](https://pnpm.io/)          | latest        |
+| [Rust](https://rustup.rs/)        | stable        |
 | [Python](https://www.python.org/) | 3.10 or later |
 
 On Windows you also need the [Tauri prerequisites](https://tauri.app/start/prerequisites/): the Microsoft C++ Build Tools and WebView2.

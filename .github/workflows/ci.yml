@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (typecheck, lint, test, build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm exec eslint .
+      - run: pnpm exec prettier --check .
+      - run: pnpm test
+      - run: pnpm exec vite build
+
+  engine:
+    name: Python engine (lint, tests, quality baseline)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install ruff==0.17.5
+      - run: ruff check python-engine
+      - run: ruff format --check python-engine
+      # Includes tests/test_quality.py, which fails if the sample passages read less human than the baseline.
+      - run: python -m unittest discover -s python-engine/tests -v
+
+  tauri:
+    name: Tauri shell (fmt, clippy, test)
+    # Windows is the only shipped target, and it needs no extra system packages.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      # tauri::generate_context! needs frontendDist (../dist) to exist; the frontend job builds the real one.
+      - run: mkdir dist; Set-Content dist/index.html "<!doctype html>"
+      - run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+      - run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+      - run: cargo test --manifest-path src-tauri/Cargo.toml

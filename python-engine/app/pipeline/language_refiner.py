@@ -68,8 +68,18 @@ PLAIN_WORDS: list[tuple[str, str, bool]] = [
 _NOT_AFTER_FOSTER = r"(?!\s+(?:care|parents?|child|children|famil\w*|homes?|kids?)\b)"
 _LEVERAGE_OBJECT = r"(?=\s+(?:the|our|their|its|this|these|existing|data|AI|new|your|his|her|a|an)\b)"
 _PLAIN_RES = [
-    (re.compile(r"\b(?:" + pat + r")\b" + (_NOT_AFTER_FOSTER if "foster" in pat else "")
-                + (_LEVERAGE_OBJECT if "leverag" in pat else ""), re.IGNORECASE), repl, academic_skip)
+    (
+        re.compile(
+            r"\b(?:"
+            + pat
+            + r")\b"
+            + (_NOT_AFTER_FOSTER if "foster" in pat else "")
+            + (_LEVERAGE_OBJECT if "leverag" in pat else ""),
+            re.IGNORECASE,
+        ),
+        repl,
+        academic_skip,
+    )
     for pat, repl, academic_skip in PLAIN_WORDS
 ]
 
@@ -94,8 +104,11 @@ def _plain_words(text: str, academic: bool) -> tuple[str, int]:
 # replaced even when the source used them. Applied in order, longer phrases first.
 # (pattern, replacement, skip in academic text). "\1" keeps the matched verb form.
 SIGNATURES: list[tuple[str, str, bool]] = [
-    (r"(play|plays|played|playing) an? (?:pivotal|crucial|vital|critical|key|instrumental|integral|significant) role",
-     r"\1 a major part", False),
+    (
+        r"(play|plays|played|playing) an? (?:pivotal|crucial|vital|critical|key|instrumental|integral|significant) role",
+        r"\1 a major part",
+        False,
+    ),
     (r"an? (?:pivotal|crucial|vital) role", "a central role", False),
     (r"delve deeper into", "look more closely at", False),
     (r"delves deeper into", "looks more closely at", False),
@@ -116,7 +129,11 @@ SIGNATURES: list[tuple[str, str, bool]] = [
     (r"tapestry", "mix", False),
     (r"navigat(?:e|es) the (?:complexities|intricacies) of", "deal with", False),
     (r"navigating the (?:complexities|intricacies) of", "dealing with", False),
-    (r"in today's (?:fast-paced|digital|modern|ever-changing|rapidly changing|interconnected) (?:world|age|era|landscape|society),\s*", "", False),
+    (
+        r"in today's (?:fast-paced|digital|modern|ever-changing|rapidly changing|interconnected) (?:world|age|era|landscape|society),\s*",
+        "",
+        False,
+    ),
     (r"in the (?:ever-evolving|ever-changing|rapidly evolving) (?:landscape|world|field|realm) of", "in", False),
     (r"ever-evolving", "changing", False),
     (r"(?:with)?in the realm of", "in", False),
@@ -188,8 +205,11 @@ def _signatures(text: str, academic: bool) -> tuple[str, int]:
 _DASH = r"(?:\s*—\s*|\s+–\s+|\s+--\s+)"
 _PAIR_RE = re.compile(_DASH + r"([^—–.!?\n]{1,120}?)" + _DASH)
 _SINGLE_RE = re.compile(_DASH)
-_SUBJECT = re.compile(r"(?:I|we|you|he|she|it|they|this|that|these|those|there|nobody|no one|everyone|"
-                      r"someone|people|nothing|everything)\b", re.IGNORECASE)
+_SUBJECT = re.compile(
+    r"(?:I|we|you|he|she|it|they|this|that|these|those|there|nobody|no one|everyone|"
+    r"someone|people|nothing|everything)\b",
+    re.IGNORECASE,
+)
 
 
 def clean_dashes(text: str) -> tuple[str, int]:
@@ -213,7 +233,7 @@ def clean_dashes(text: str) -> tuple[str, int]:
 
     def single(m: re.Match) -> str:
         nonlocal count
-        right = re.match(r"[^.!?\n]*", m.string[m.end():]).group()
+        right = re.match(r"[^.!?\n]*", m.string[m.end() :]).group()
         before = m.string[: m.start()].rstrip()
         count += 1
         if not right.strip() or not before or before[-1] in ".!?\n":
@@ -276,8 +296,9 @@ def _dedupe(m: re.Match) -> str:
 
 
 class LanguageRefiner:
-    def refine(self, text: str, source: str, seed: int | None = None, *, humanize: bool = False,
-               academic: bool = False) -> Refined:
+    def refine(
+        self, text: str, source: str, seed: int | None = None, *, humanize: bool = False, academic: bool = False
+    ) -> Refined:
         """``academic``: the source reads as academic writing (Layer 2), so precise words stay."""
         fixes = 0
         restructured = 0

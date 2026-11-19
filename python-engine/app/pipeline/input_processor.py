@@ -38,14 +38,22 @@ PATTERNS: list[tuple[str, str]] = [
     # (Smith, 2020), (Smith & Lee, 2019; Wang et al., 2021, p. 4), (see WHO, 2020)
     ("citation", r"\((?=[^()\n]*" + _YEAR + r")(?=[^()\n]*[A-Z])[^()\n]{2,250}\)"),
     # Smith (2020), Smith et al. (2020, p. 12), Smith and Lee (2019)
-    ("citation", _NAME + r"(?:\s+(?:et\s+al\.|(?:and|&)\s+" + _NAME + r"))?\s+\(" + _YEAR
-     + r"(?:,\s*pp?\.\s*\d+(?:\s*[-–]\s*\d+)?)?\)"),
+    (
+        "citation",
+        _NAME
+        + r"(?:\s+(?:et\s+al\.|(?:and|&)\s+"
+        + _NAME
+        + r"))?\s+\("
+        + _YEAR
+        + r"(?:,\s*pp?\.\s*\d+(?:\s*[-–]\s*\d+)?)?\)",
+    ),
     # [1], [2, 5], [3-7]
     ("citation", r"\[\d+(?:\s*[-–,]\s*\d+)*\]"),
 ]
 PROTECT_RE = re.compile("|".join(f"(?P<p{i}>{pat})" for i, (_, pat) in enumerate(PATTERNS)))
 KINDS = [kind for kind, _ in PATTERNS]
 CITATION_RE = re.compile("|".join(f"(?:{pat})" for kind, pat in PATTERNS if kind == "citation"))
+
 
 def clean_count(text: str) -> tuple[str, int]:
     """Normalise line endings and invisible characters without changing the wording.
@@ -84,8 +92,8 @@ def protect(text: str, layout: Layout | None = None) -> tuple[str, list[Protecte
     out: list[str] = []
     pos = 0
     for b in layout.blocks:
-        out.append(_protect_inline(text[pos:b.start], protected))
-        p = Protected(len(protected) + 1, b.kind, text[b.start:b.end], b.lang, b.label)
+        out.append(_protect_inline(text[pos : b.start], protected))
+        p = Protected(len(protected) + 1, b.kind, text[b.start : b.end], b.lang, b.label)
         protected.append(p)
         out.append(p.token)
         pos = b.end

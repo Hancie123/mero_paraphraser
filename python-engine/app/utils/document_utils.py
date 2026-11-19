@@ -21,7 +21,7 @@ def split_references(text: str) -> tuple[str, str]:
         return text, ""
     m = matches[-1]
     # Only treat it as a reference list if it is in the second half and something follows it.
-    if m.start() < len(text) * 0.3 or not text[m.end():].strip():
+    if m.start() < len(text) * 0.3 or not text[m.end() :].strip():
         return text, ""
     cut = m.start()
     # Keep the blank line(s) before the heading with the references.

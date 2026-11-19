@@ -47,48 +47,193 @@ TARGETS = {lx.A: ("a", "s"), lx.R: ("r",)}
 
 # Words WordNet groups wrongly for everyday prose; extend after reviewing the output.
 EXCLUDE = {
-    "dead", "gay", "queer", "bloody", "damn", "damned", "fucking", "sick", "hot", "high", "stoned",
-    "wet", "dry", "loose", "easy", "cheap", "fresh", "straight", "bent", "blue", "green", "black",
-    "white", "red", "yellow", "brown", "pink", "grey", "gray", "colored", "coloured",
+    "dead",
+    "gay",
+    "queer",
+    "bloody",
+    "damn",
+    "damned",
+    "fucking",
+    "sick",
+    "hot",
+    "high",
+    "stoned",
+    "wet",
+    "dry",
+    "loose",
+    "easy",
+    "cheap",
+    "fresh",
+    "straight",
+    "bent",
+    "blue",
+    "green",
+    "black",
+    "white",
+    "red",
+    "yellow",
+    "brown",
+    "pink",
+    "grey",
+    "gray",
+    "colored",
+    "coloured",
     # slang and dated slang
-    "kinda", "sorta", "groovy", "keen", "swell", "nifty", "dandy", "cool", "wicked", "awesome",
-    "horny", "randy", "loco", "nuts", "bats", "crackers", "daft", "alas", "scarce", "satanic",
-    "infernal", "demonic", "unholy", "shitty", "crappy", "fab", "wee", "oft", "needs", "forth",
-    "anyways", "comfy", "foxy", "wacky", "madly",
+    "kinda",
+    "sorta",
+    "groovy",
+    "keen",
+    "swell",
+    "nifty",
+    "dandy",
+    "cool",
+    "wicked",
+    "awesome",
+    "horny",
+    "randy",
+    "loco",
+    "nuts",
+    "bats",
+    "crackers",
+    "daft",
+    "alas",
+    "scarce",
+    "satanic",
+    "infernal",
+    "demonic",
+    "unholy",
+    "shitty",
+    "crappy",
+    "fab",
+    "wee",
+    "oft",
+    "needs",
+    "forth",
+    "anyways",
+    "comfy",
+    "foxy",
+    "wacky",
+    "madly",
     # proper adjectives: never interchangeable
-    "celtic", "gaelic",
+    "celtic",
+    "gaelic",
     # WordNet's main sense for these is not the everyday one (null, vain, struck, ...)
-    "primal", "haired", "hairy", "null", "void", "singular", "smitten", "struck", "stricken",
-    "swollen", "vain", "gilt", "sterling", "nomadic", "mobile", "monolithic", "pictorial", "mute",
-    "unspoken", "outrageous", "funky", "smelly", "fussy", "grumpy", "crimson", "reddish", "extra",
-    "redundant", "fatal", "fateful", "drawn", "worn", "undefined", "presently", "instead",
-    "alternatively", "sooner", "earlier",
+    "primal",
+    "haired",
+    "hairy",
+    "null",
+    "void",
+    "singular",
+    "smitten",
+    "struck",
+    "stricken",
+    "swollen",
+    "vain",
+    "gilt",
+    "sterling",
+    "nomadic",
+    "mobile",
+    "monolithic",
+    "pictorial",
+    "mute",
+    "unspoken",
+    "outrageous",
+    "funky",
+    "smelly",
+    "fussy",
+    "grumpy",
+    "crimson",
+    "reddish",
+    "extra",
+    "redundant",
+    "fatal",
+    "fateful",
+    "drawn",
+    "worn",
+    "undefined",
+    "presently",
+    "instead",
+    "alternatively",
+    "sooner",
+    "earlier",
     # common words with other roles ("little time", "work hard", "later in the year", "highly
     # regarded", "simply put", "fine sand")
-    "little", "hard", "later", "highly", "simply", "fine", "notwithstanding",
+    "little",
+    "hard",
+    "later",
+    "highly",
+    "simply",
+    "fine",
+    "notwithstanding",
 }
 
 # Pairs that share a WordNet sense but read differently in modern prose; blocked both ways.
 _BAD = [
-    ("rather", "instead"), ("central", "fundamental"), ("plain", "apparent"), ("plain", "evident"),
-    ("remarkable", "singular"), ("cheery", "sunny"), ("chic", "smart"), ("problematic", "debatable"),
-    ("insistent", "repetitive"), ("ferocious", "furious"), ("fierce", "furious"),
-    ("stern", "relentless"), ("stern", "grim"), ("grim", "relentless"), ("fertile", "prolific"),
-    ("differently", "otherwise"), ("systematically", "consistently"), ("disruptive", "turbulent"),
-    ("disruptive", "tumultuous"), ("really", "actually"), ("gently", "mildly"),
-    ("arbitrarily", "randomly"), ("cultural", "ethnic"), ("alien", "exotic"),
-    ("aforementioned", "said"), ("crude", "earthy"), ("delicious", "delightful"), ("full", "entire"),
-    ("fundamental", "rudimentary"), ("grotesque", "fantastic"), ("hideous", "horrific"),
-    ("honorable", "honest"), ("integral", "intact"), ("integral", "inherent"), ("miserable", "poor"),
-    ("poor", "pathetic"), ("religious", "spiritual"), ("tender", "sore"), ("unparalleled", "unique"),
-    ("crisp", "sharp"), ("dramatic", "spectacular"), ("mysterious", "mystic"),
-    ("particular", "special"), ("funny", "curious"), ("funny", "comic"), ("sober", "solemn"),
-    ("lousy", "rotten"), ("older", "elderly"), ("everyday", "mundane"), ("bare", "naked"),
-    ("tremendous", "wonderful"), ("tremendous", "marvelous"), ("tremendous", "marvellous"),
-    ("aggressively", "sharply"), ("brightly", "brilliantly"), ("constantly", "invariably"),
-    ("desperately", "urgently"), ("necessarily", "inevitably"), ("purely", "strictly"),
-    ("badly", "severely"), ("unusually", "remarkably"), ("perfectly", "utterly"),
-    ("absolutely", "perfectly"), ("faithfully", "reliably"), ("firmly", "securely"),
+    ("rather", "instead"),
+    ("central", "fundamental"),
+    ("plain", "apparent"),
+    ("plain", "evident"),
+    ("remarkable", "singular"),
+    ("cheery", "sunny"),
+    ("chic", "smart"),
+    ("problematic", "debatable"),
+    ("insistent", "repetitive"),
+    ("ferocious", "furious"),
+    ("fierce", "furious"),
+    ("stern", "relentless"),
+    ("stern", "grim"),
+    ("grim", "relentless"),
+    ("fertile", "prolific"),
+    ("differently", "otherwise"),
+    ("systematically", "consistently"),
+    ("disruptive", "turbulent"),
+    ("disruptive", "tumultuous"),
+    ("really", "actually"),
+    ("gently", "mildly"),
+    ("arbitrarily", "randomly"),
+    ("cultural", "ethnic"),
+    ("alien", "exotic"),
+    ("aforementioned", "said"),
+    ("crude", "earthy"),
+    ("delicious", "delightful"),
+    ("full", "entire"),
+    ("fundamental", "rudimentary"),
+    ("grotesque", "fantastic"),
+    ("hideous", "horrific"),
+    ("honorable", "honest"),
+    ("integral", "intact"),
+    ("integral", "inherent"),
+    ("miserable", "poor"),
+    ("poor", "pathetic"),
+    ("religious", "spiritual"),
+    ("tender", "sore"),
+    ("unparalleled", "unique"),
+    ("crisp", "sharp"),
+    ("dramatic", "spectacular"),
+    ("mysterious", "mystic"),
+    ("particular", "special"),
+    ("funny", "curious"),
+    ("funny", "comic"),
+    ("sober", "solemn"),
+    ("lousy", "rotten"),
+    ("older", "elderly"),
+    ("everyday", "mundane"),
+    ("bare", "naked"),
+    ("tremendous", "wonderful"),
+    ("tremendous", "marvelous"),
+    ("tremendous", "marvellous"),
+    ("aggressively", "sharply"),
+    ("brightly", "brilliantly"),
+    ("constantly", "invariably"),
+    ("desperately", "urgently"),
+    ("necessarily", "inevitably"),
+    ("purely", "strictly"),
+    ("badly", "severely"),
+    ("unusually", "remarkably"),
+    ("perfectly", "utterly"),
+    ("absolutely", "perfectly"),
+    ("faithfully", "reliably"),
+    ("firmly", "securely"),
 ]
 BAD_PAIRS = {p for a, b in _BAD for p in ((a, b), (b, a))}
 
@@ -145,8 +290,15 @@ def build(min_zipf: float, max_gap: float, max_synonyms: int, min_share: float) 
         entries: dict[str, list[str]] = {}
         names = {n for t in targets for n in wn.all_lemma_names(pos=t)}
         for word in sorted(names):
-            if (not plain(word) or len(word) < 4 or word in hand_written or word in STOPWORDS
-                    or word in EXCLUDE or word in AVOID_WORDS or verb_form(wn, word)):
+            if (
+                not plain(word)
+                or len(word) < 4
+                or word in hand_written
+                or word in STOPWORDS
+                or word in EXCLUDE
+                or word in AVOID_WORDS
+                or verb_form(wn, word)
+            ):
                 continue
             freq = zipf(word)
             if freq < min_zipf or pos_share(wn, word, targets) < min_share:
@@ -155,9 +307,18 @@ def build(min_zipf: float, max_gap: float, max_synonyms: int, min_share: float) 
             for synset in main_senses(wn, word, targets):
                 for lemma in synset.lemmas():
                     alt = lemma.name().lower()
-                    if (alt == word or alt in candidates or not plain(alt) or len(alt) < 3
-                            or alt[:5] == word[:5] or alt in EXCLUDE or alt in AVOID_WORDS or alt in STOPWORDS
-                            or (word, alt) in BAD_PAIRS or spelling_variant(word, alt)):
+                    if (
+                        alt == word
+                        or alt in candidates
+                        or not plain(alt)
+                        or len(alt) < 3
+                        or alt[:5] == word[:5]
+                        or alt in EXCLUDE
+                        or alt in AVOID_WORDS
+                        or alt in STOPWORDS
+                        or (word, alt) in BAD_PAIRS
+                        or spelling_variant(word, alt)
+                    ):
                         continue
                     alt_freq = zipf(alt)
                     if alt_freq < min_zipf or alt_freq < freq - max_gap:
@@ -191,20 +352,27 @@ def dump(payload: dict) -> str:
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    p.add_argument("--min-zipf", type=float, default=3.0, help="minimum word frequency (Zipf scale, 3 = once per million words)")
-    p.add_argument("--max-gap", type=float, default=1.5, help="how much rarer than the original a synonym may be (Zipf)")
+    p.add_argument(
+        "--min-zipf", type=float, default=3.0, help="minimum word frequency (Zipf scale, 3 = once per million words)"
+    )
+    p.add_argument(
+        "--max-gap", type=float, default=1.5, help="how much rarer than the original a synonym may be (Zipf)"
+    )
     p.add_argument("--max-synonyms", type=int, default=4)
     p.add_argument("--min-share", type=float, default=0.7, help="minimum share of uses as an adjective/adverb")
     p.add_argument("--out", type=Path, default=OUT)
     args = p.parse_args()
 
     import nltk
+
     nltk.download("wordnet", quiet=True)
 
     data = build(args.min_zipf, args.max_gap, args.max_synonyms, args.min_share)
-    payload = {"_about": "Generated by tools/build_lexicon.py from WordNet 3.0 and wordfreq. Do not edit; "
-                         "add words to app/core/lexicon.py (they take priority) or EXCLUDE instead.",
-               **data}
+    payload = {
+        "_about": "Generated by tools/build_lexicon.py from WordNet 3.0 and wordfreq. Do not edit; "
+        "add words to app/core/lexicon.py (they take priority) or EXCLUDE instead.",
+        **data,
+    }
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(dump(payload), encoding="utf-8")
     counts = ", ".join(f"{len(v)} {'adjectives' if k == lx.A else 'adverbs'}" for k, v in data.items())

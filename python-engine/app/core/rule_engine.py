@@ -14,6 +14,7 @@ import re
 from dataclasses import dataclass, field
 
 from ..schemas.paraphrase import ParaphraseError
+from ..utils.text_utils import match_case, wants_an
 from . import lexicon as lx
 from .config import MAX_CHARS
 
@@ -41,11 +42,6 @@ _TOKEN_RE = re.compile(
 )
 _WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
 _MAX_PHRASE = max(len(key) for rule in RULES for key in rule.table)
-_AN_EXCEPTIONS = ("hour", "honest", "honor", "honour", "heir")
-_A_EXCEPTIONS = (
-    "unique", "unit", "univ", "unif", "union", "unicorn", "usual", "use", "usa",
-    "utili", "utop", "euro", "eu", "one", "once", "ufo",
-)
 
 
 @dataclass
@@ -68,23 +64,8 @@ def _stem(word: str) -> str:
     return _norm(word)[:5]
 
 
-def match_case(original: str, replacement: str) -> str:
-    """Give ``replacement`` the capitalisation style of ``original``."""
-    letters = [c for c in original if c.isalpha()]
-    if len(letters) > 1 and all(c.isupper() for c in letters):
-        return replacement.upper()
-    if original[:1].isupper():
-        return replacement[:1].upper() + replacement[1:]
-    return replacement
 
 
-def wants_an(word: str) -> bool:
-    w = word.lower()
-    if w.startswith(_AN_EXCEPTIONS):
-        return True
-    if w.startswith(_A_EXCEPTIONS):
-        return False
-    return w[:1] in "aeiou"
 
 
 class Paraphraser:
@@ -101,11 +82,7 @@ class Paraphraser:
 
     def _next_is_word(self, i: int) -> bool:
         """True if token i is followed by a single inline gap and a word."""
-        return (
-            self._kind(i + 1) == "space"
-            and "\n" not in self.tokens[i + 1][1]
-            and self._kind(i + 2) == "word"
-        )
+        return self._kind(i + 1) == "space" and "\n" not in self.tokens[i + 1][1] and self._kind(i + 2) == "word"
 
     def _in_compound(self, i: int) -> bool:
         """Part of a hyphenated or slashed compound like ``well-known``."""
@@ -230,11 +207,13 @@ def _merge(segments: list[Segment]) -> list[dict]:
     merged: list[dict] = []
     for seg in segments:
         if seg.changed:
-            merged.append({
-                "text": seg.text,
-                "original": seg.original,
-                "alternatives": list(dict.fromkeys(a for a in seg.alternatives if a != seg.text)),
-            })
+            merged.append(
+                {
+                    "text": seg.text,
+                    "original": seg.original,
+                    "alternatives": list(dict.fromkeys(a for a in seg.alternatives if a != seg.text)),
+                }
+            )
         elif merged and "original" not in merged[-1]:
             merged[-1]["text"] += seg.text
         else:

@@ -75,3 +75,14 @@ export function fromBase64(data: string): Uint8Array {
 }
 
 export const engineStatus = () => invoke<{ version: string }>("engine_status");
+
+export type EngineState =
+  { state: "starting" } | { state: "ready"; version: string } | { state: "error"; message: string };
+
+/** The error a request rejects with after `cancelEngine` (matches `engine::CANCELLED`). */
+export const CANCELLED = "Cancelled.";
+/** Stops the request in flight; the engine restarts for the next one. */
+export const cancelEngine = () => invoke<void>("cancel_engine");
+/** Where the engine writes its log (release builds), if anywhere. */
+export const logPath = () => invoke<string | null>("log_path");
+export const openLogFolder = () => invoke<void>("open_log_folder");

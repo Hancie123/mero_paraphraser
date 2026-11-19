@@ -71,7 +71,9 @@ class Layer2And3AnalysisTests(unittest.TestCase):
 
 class Layer5RefineTests(unittest.TestCase):
     def test_fixes_spacing_articles_doubles_and_stock_phrases(self):
-        r = LanguageRefiner().refine("It is important to note that the the plan works . a apple, e.g. this.", "The plan works.")
+        r = LanguageRefiner().refine(
+            "It is important to note that the the plan works . a apple, e.g. this.", "The plan works."
+        )
         self.assertEqual(r.text, "The plan works. An apple, e.g. this.")
         self.assertEqual(r.phrases, 1)
         self.assertGreaterEqual(r.fixes, 3)
@@ -81,7 +83,9 @@ class Layer5RefineTests(unittest.TestCase):
         self.assertEqual(r.text, "It is worth noting that it works.")
 
     def test_plain_words_replace_ai_verbs_even_from_source(self):
-        r = LanguageRefiner().refine("We delve into it and utilize data. Foster care is paramount.", "We delve into it.")
+        r = LanguageRefiner().refine(
+            "We delve into it and utilize data. Foster care is paramount.", "We delve into it."
+        )
         self.assertEqual(r.text, "We look at it and use data. Foster care matters most.")
 
     def test_robust_kept_in_academic_text(self):
@@ -116,17 +120,23 @@ class Layer6And7ValidationTests(unittest.TestCase):
 
 class Layer8OutputTests(unittest.TestCase):
     def test_segments_rebuild_output_with_kinds(self):
-        segs, changes, _ = diff_segments("The big dog ran home, and it was happy.", "The large dog ran home, and it felt happy.")
+        segs, changes, _ = diff_segments(
+            "The big dog ran home, and it was happy.", "The large dog ran home, and it felt happy."
+        )
         self.assertEqual("".join(s["text"] for s in segs), "The large dog ran home, and it felt happy.")
         changed = [s for s in segs if "original" in s]
-        self.assertEqual([(s["original"], s["text"], s["kind"]) for s in changed],
-                         [("big", "large", "Synonym"), ("was", "felt", "Reworded")])
+        self.assertEqual(
+            [(s["original"], s["text"], s["kind"]) for s in changed],
+            [("big", "large", "Synonym"), ("was", "felt", "Reworded")],
+        )
         self.assertIn("big", changed[0]["alternatives"])
         self.assertEqual(changes, 2)
 
     def test_change_levels(self):
-        segs, _, _ = diff_segments("The big dog ran home, and it was happy. We liked it.",
-                                   "The large dog ran home. It felt happy. We really liked it.")
+        segs, _, _ = diff_segments(
+            "The big dog ran home, and it was happy. We liked it.",
+            "The large dog ran home. It felt happy. We really liked it.",
+        )
         levels = [(s["original"], s["level"]) for s in segs if "level" in s]
         # The split sentence is highlighted whole (its word swap included); small edits elsewhere stay small.
         self.assertEqual(levels, [("The big dog ran home, and it was happy.", "sentence"), ("", "added")])
@@ -151,13 +161,20 @@ class PipelineTests(unittest.TestCase):
     def test_end_to_end_report(self):
         r = handle({"cmd": "paraphrase", "text": ACADEMIC, "mode": "humanize", "strength": 60, "seed": 2})
         self.assertEqual("".join(s["text"] for s in r["segments"]), r["text"])
-        for kept in ("Twenge (2019)", "(Orben & Przybylski, 2019; Lee et al., 2021, p. 4)",
-                     '"screen time is not a single thing"', "[3]", "https://example.org/study",
-                     "References\nTwenge, J. (2019). iGen. Atria Books."):
+        for kept in (
+            "Twenge (2019)",
+            "(Orben & Przybylski, 2019; Lee et al., 2021, p. 4)",
+            '"screen time is not a single thing"',
+            "[3]",
+            "https://example.org/study",
+            "References\nTwenge, J. (2019). iGen. Atria Books.",
+        ):
             self.assertIn(kept, r["text"])
         layers = r["report"]["layers"]
-        self.assertEqual([l["id"] for l in layers],
-                         ["input", "context", "semantic", "rewrite", "refine", "meaning", "citations", "output"])
+        self.assertEqual(
+            [l["id"] for l in layers],
+            ["input", "context", "semantic", "rewrite", "refine", "meaning", "citations", "output"],
+        )
         self.assertEqual(layers[6]["status"], "ok")
 
     def test_humanize_is_the_only_mode(self):

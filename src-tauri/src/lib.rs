@@ -3,7 +3,7 @@ mod engine;
 use engine::Engine;
 use serde_json::{json, Value};
 use std::sync::Arc;
-use tauri::State;
+use tauri::{Manager, State};
 
 type SharedEngine = Arc<Engine>;
 
@@ -48,6 +48,39 @@ async fn clean_docx(engine: State<'_, SharedEngine>, data: String) -> Result<Val
     call(&engine, json!({ "cmd": "clean_docx", "data": data })).await
 }
 
+/// Stops the request in flight (the engine is restarted for the next one).
+#[tauri::command]
+fn cancel_engine(engine: State<'_, SharedEngine>) {
+    engine.cancel();
+}
+
+/// Where the engine log is written, if anywhere.
+#[tauri::command]
+fn log_path(engine: State<'_, SharedEngine>) -> Option<String> {
+    engine.log_path().map(|p| p.display().to_string())
+}
+
+/// Opens the folder that holds the engine log in the system file manager.
+#[tauri::command]
+fn open_log_folder(engine: State<'_, SharedEngine>) -> Result<(), String> {
+    let dir = engine
+        .log_path()
+        .and_then(|p| p.parent())
+        .ok_or("no log folder is available")?;
+    let opener = if cfg!(windows) {
+        "explorer"
+    } else if cfg!(target_os = "macos") {
+        "open"
+    } else {
+        "xdg-open"
+    };
+    std::process::Command::new(opener)
+        .arg(dir)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("could not open {}: {e}", dir.display()))
+}
+
 #[tauri::command]
 async fn engine_status(engine: State<'_, SharedEngine>) -> Result<Value, String> {
     call(&engine, json!({ "cmd": "ping" })).await
@@ -55,17 +88,41 @@ async fn engine_status(engine: State<'_, SharedEngine>) -> Result<Value, String>
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let engine: SharedEngine = Arc::new(Engine::new());
-
-    // Start the Python engine in the background so the first request is fast.
-    let warm = engine.clone();
-    std::thread::spawn(move || {
-        let _ = warm.request(json!({ "cmd": "ping" }));
-    });
-
     tauri::Builder::default()
-        .manage(engine)
-        .invoke_handler(tauri::generate_handler![paraphrase, engine_status, export_docx, read_docx, clean_docx])
+        .setup(|app| {
+            let paths = app.path();
+            let engine: SharedEngine = Arc::new(Engine::new(
+                paths.resource_dir().ok().map(|d| d.join("engine")),
+                paths.app_log_dir().ok(),
+            ));
+
+            // Release builds have no console, so record panics in the log too.
+            let for_panics = engine.clone();
+            let default_hook = std::panic::take_hook();
+            std::panic::set_hook(Box::new(move |info| {
+                for_panics.log(&format!("panic: {info}"));
+                default_hook(info);
+            }));
+
+            // Start the Python engine in the background so the first request is fast.
+            let warm = engine.clone();
+            std::thread::spawn(move || {
+                let _ = warm.request(json!({ "cmd": "ping" }));
+            });
+
+            app.manage(engine);
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            paraphrase,
+            engine_status,
+            export_docx,
+            read_docx,
+            clean_docx,
+            cancel_engine,
+            log_path,
+            open_log_folder
+        ])
         .run(tauri::generate_context!())
         .expect("error while running Mero Paraphraser");
 }

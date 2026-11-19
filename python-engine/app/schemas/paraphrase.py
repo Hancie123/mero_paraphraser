@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 
 from ..core.config import MAX_CHARS, MODES
 
+
 class ParaphraseError(ValueError):
     """Invalid input or a failure the user should see (bad mode, text too long...)."""
 
@@ -18,7 +19,7 @@ class ParaphraseRequest:
     seed: int | None = None
 
     @classmethod
-    def from_dict(cls, d: dict) -> "ParaphraseRequest":
+    def from_dict(cls, d: dict) -> ParaphraseRequest:
         text = d.get("text", "")
         if not isinstance(text, str):
             raise ParaphraseError("text must be a string")

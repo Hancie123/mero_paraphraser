@@ -1,0 +1,5 @@
+{
+  "_comment": "Prefixes that override the vowel rule for choosing \"a\" or \"an\". Shared by python-engine/app/utils/text_utils.py and src/text.ts.",
+  "an": ["hour", "honest", "honor", "honour", "heir"],
+  "a": ["unique", "unit", "univ", "unif", "union", "unicorn", "usual", "use", "usa", "utili", "utop", "euro", "eu", "one", "once", "ufo"]
+}

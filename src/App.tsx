@@ -1,50 +1,36 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  CANCELLED,
+  cancelEngine,
   cleanDocx,
   engineStatus,
   exportDocx,
   fromBase64,
+  logPath,
   MAX_CHARS,
+  MODES,
+  openLogFolder,
+  paraphrase,
   readDocx,
   toBase64,
-  MODES,
-  paraphrase,
+  type EngineState,
   type Mode,
   type Segment,
   type Stats,
 } from "./api";
+import { AboutDialog, EngineBadge, ShortcutsDialog } from "./Dialogs";
 import MenuBar, { type Menu } from "./MenuBar";
+import Picker, { type PickerPos } from "./Picker";
+import ResultPane from "./ResultPane";
 import { countWords, replaceSegment } from "./text";
 
-type EngineState = { state: "starting" } | { state: "ready"; version: string } | { state: "error"; message: string };
-type Picker = { index: number; x: number; y: number };
 type DialogKind = "about" | "shortcuts" | null;
-
-const LEVELS = ["word", "phrase", "sentence", "added"] as const;
-const LEVEL_LABELS: Record<string, string> = {
-  word: "Word",
-  phrase: "Phrase",
-  sentence: "Sentence",
-  added: "Added",
-};
 
 const STRENGTH_LABELS = ["Light", "Moderate", "Strong"];
 const ZOOM_STEPS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
-const APP_VERSION = "0.1.0";
-
-const SHORTCUTS: [string, string][] = [
-  ["Paraphrase", "Ctrl+Enter"],
-  ["New", "Ctrl+N"],
-  ["Open text or Word file", "Ctrl+O"],
-  ["Save result", "Ctrl+S"],
-  ["Copy result", "Ctrl+Shift+C"],
-  ["Zoom in / out", "Ctrl+= / Ctrl+-"],
-  ["Reset zoom", "Ctrl+0"],
-  ["Open a menu", "Alt+F, Alt+E, Alt+V, Alt+H"],
-  ["Close menu or popup", "Esc"],
-];
 
 export default function App() {
   const [input, setInput] = useState("");
@@ -56,12 +42,13 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [engine, setEngine] = useState<EngineState>({ state: "starting" });
+  const [appVersion, setAppVersion] = useState("");
+  const [logFile, setLogFile] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(true);
-  const [picker, setPicker] = useState<Picker | null>(null);
+  const [picker, setPicker] = useState<PickerPos | null>(null);
   const [copied, setCopied] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const pickerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cleanRef = useRef<HTMLInputElement>(null);
@@ -74,6 +61,12 @@ export default function App() {
         setEngine({ state: "ready", version: r.version });
       })
       .catch((e) => setEngine({ state: "error", message: String(e) }));
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {});
+    logPath()
+      .then(setLogFile)
+      .catch(() => {});
   }, []);
 
   const run = useCallback(async () => {
@@ -89,11 +82,13 @@ export default function App() {
       setStats(result.stats);
       setEngine((e) => (e.state === "ready" ? e : { state: "ready", version: "" }));
     } catch (e) {
-      setError(String(e));
+      if (e !== CANCELLED) setError(String(e));
     } finally {
       setBusy(false);
     }
   }, [input, strength, busy]);
+
+  const cancel = () => void cancelEngine();
 
   /* ---------- commands ---------- */
 
@@ -177,7 +172,8 @@ export default function App() {
           ],
         });
         const w = await handle.createWritable();
-        if (handle.name.toLowerCase().endsWith(".docx")) await w.write(fromBase64((await exportDocx(output)).data) as BlobPart);
+        if (handle.name.toLowerCase().endsWith(".docx"))
+          await w.write(fromBase64((await exportDocx(output)).data) as BlobPart);
         else await w.write(output);
         await w.close();
       } else {
@@ -257,8 +253,11 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const ctrl = e.ctrlKey || e.metaKey;
       if (e.key === "Escape") {
-        setPicker(null);
-        setDialog(null);
+        // Esc closes a popup first; with nothing open it cancels a running paraphrase.
+        if (picker || dialog) {
+          setPicker(null);
+          setDialog(null);
+        } else if (busy) cancel();
         return;
       }
       if (!ctrl || e.altKey) return;
@@ -280,20 +279,12 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  useEffect(() => {
-    if (!picker) return;
-    const onDown = (e: MouseEvent) => {
-      if (!pickerRef.current?.contains(e.target as Node)) setPicker(null);
-    };
-    window.addEventListener("mousedown", onDown);
-    return () => window.removeEventListener("mousedown", onDown);
-  }, [picker]);
-
   const openPicker = (index: number, el: HTMLElement) => {
     const r = el.getBoundingClientRect();
     const x = Math.min(r.left, window.innerWidth - 240);
     setPicker({ index, x: Math.max(8, x), y: r.bottom + 6 });
   };
+  const closePicker = useCallback(() => setPicker(null), []);
 
   const choose = (text: string) => {
     if (!picker) return;
@@ -334,6 +325,7 @@ export default function App() {
         { label: "Select all", shortcut: "Ctrl+A", action: () => edit("selectAll") },
         { separator: true },
         { label: "Paraphrase", shortcut: "Ctrl+Enter", action: () => void run(), disabled: !canRun },
+        { label: "Cancel paraphrasing", shortcut: "Esc", action: cancel, disabled: !busy },
         { label: "Copy result", shortcut: "Ctrl+Shift+C", action: () => void copy(), disabled: !output },
         { label: "Use result as input", action: useOutput, disabled: !output },
       ],
@@ -406,8 +398,12 @@ export default function App() {
             <div className="pane-head">
               <span>Original</span>
               <div className="actions">
-                <button className="ghost" onClick={paste}>Paste</button>
-                <button className="ghost" onClick={() => setInput("")} disabled={!input}>Clear</button>
+                <button className="ghost" onClick={paste}>
+                  Paste
+                </button>
+                <button className="ghost" onClick={() => setInput("")} disabled={!input}>
+                  Clear
+                </button>
               </div>
             </div>
             <textarea
@@ -420,82 +416,37 @@ export default function App() {
               autoFocus
             />
             <div className="pane-foot">
-              <span>{inputWords} words · {input.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} chars</span>
-              <button className="primary" onClick={run} disabled={!canRun}>
-                {busy
-                  ? "Paraphrasing…"
-                  : segments.length
-                    ? "Rephrase"
-                    : "Paraphrase"}
-                <kbd>Ctrl ↵</kbd>
-              </button>
+              <span>
+                {inputWords} words · {input.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} chars
+              </span>
+              <div className="actions">
+                {busy && (
+                  <button className="ghost" onClick={cancel} title="Stop paraphrasing (Esc)">
+                    Cancel
+                  </button>
+                )}
+                <button className="primary" onClick={run} disabled={!canRun}>
+                  {busy ? "Paraphrasing…" : segments.length ? "Rephrase" : "Paraphrase"}
+                  <kbd>Ctrl ↵</kbd>
+                </button>
+              </div>
             </div>
           </div>
 
-          <div className="pane">
-            <div className="pane-head">
-              <span>Paraphrased</span>
-              <div className="actions">
-                <label className="toggle">
-                  <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)} />
-                  Highlight changes
-                </label>
-                <button className="ghost" onClick={useOutput} disabled={!output} title="Use the result as the new input">
-                  Use as input
-                </button>
-                <button className="ghost" onClick={copy} disabled={!output}>{copied ? "Copied" : "Copy"}</button>
-              </div>
-            </div>
-            <div className={busy ? "progress indeterminate" : "progress"} role="progressbar" aria-hidden={!busy} />
-            <div className={busy ? "output busy" : "output"} aria-live="polite">
-              {error ? (
-                <p className="error">{error}</p>
-              ) : notice && !segments.length ? (
-                <p className="notice">{notice}</p>
-              ) : segments.length ? (
-                segments.map((s, i) =>
-                  s.original !== undefined ? (
-                    <button
-                      key={i}
-                      className={highlight ? `chg on lvl-${s.level ?? "phrase"}` : "chg"}
-                      title={`${LEVEL_LABELS[s.level ?? "phrase"]} · ${s.kind ?? "Changed"}: “${s.original || "(new)"}” → “${s.text}” · click for alternatives`}
-                      onClick={(e) => openPicker(i, e.currentTarget)}
-                    >
-                      {s.text}
-                    </button>
-                  ) : (
-                    <span key={i}>{s.text}</span>
-                  ),
-                )
-              ) : (
-                <p className="placeholder">
-                  Your paraphrased text appears here. Click a highlighted word to pick a different alternative.
-                </p>
-              )}
-            </div>
-            <div className="pane-foot">
-              {stats ? (
-                <>
-                  <span>
-                    {countWords(output)} words · {stats.changes} edits · {stats.change_pct}% of words changed
-                  </span>
-                  {highlight && stats.levels && (
-                    <span className="legend" aria-label="Highlight colours">
-                      {LEVELS.filter((l) => stats.levels![l]).map((l) => (
-                        <span key={l} className={`legend-item lvl-${l}`}>
-                          <i aria-hidden="true" />
-                          {stats.levels![l]} {LEVEL_LABELS[l].toLowerCase()}
-                          {stats.levels![l] === 1 ? "" : l === "added" ? "" : "s"}
-                        </span>
-                      ))}
-                    </span>
-                  )}
-                </>
-              ) : (
-                <span>&nbsp;</span>
-              )}
-            </div>
-          </div>
+          <ResultPane
+            segments={segments}
+            stats={stats}
+            output={output}
+            busy={busy}
+            error={error}
+            notice={notice}
+            highlight={highlight}
+            copied={copied}
+            onHighlightChange={setHighlight}
+            onUseOutput={useOutput}
+            onCopy={() => void copy()}
+            onOpenPicker={openPicker}
+          />
         </main>
 
         <footer className="footer">Powered by Mero Vision Pvt. Ltd</footer>
@@ -522,102 +473,18 @@ export default function App() {
         }}
       />
 
-      {picker && active && (
-        <div ref={pickerRef} className="picker" style={{ left: picker.x, top: picker.y }} role="menu">
-          <div className="picker-head">
-            Replace “{active.text.length > 60 ? active.text.slice(0, 57).trimEnd() + "…" : active.text}”
-          </div>
-          {(active.alternatives ?? []).map((alt) => (
-            <button
-              key={alt}
-              role="menuitem"
-              className={active.level === "sentence" ? "picker-sentence" : undefined}
-              onClick={() => choose(alt)}
-            >
-              {alt}
-              {alt === active.original && <em>original</em>}
-            </button>
-          ))}
-        </div>
-      )}
+      {picker && active && <Picker pos={picker} segment={active} onChoose={choose} onClose={closePicker} />}
 
       {dialog === "about" && (
-        <Dialog title="About Mero Paraphraser" onClose={() => setDialog(null)}>
-          <p>Rewrite text offline, right on your computer. Nothing you type leaves this device.</p>
-          <dl className="about-list">
-            <dt>Version</dt>
-            <dd>{APP_VERSION}</dd>
-            <dt>Engine</dt>
-            <dd>
-              {engine.state === "ready"
-                ? engine.version || "Running"
-                : engine.state === "starting"
-                  ? "Starting…"
-                  : "Unavailable"}
-            </dd>
-            <dt>Publisher</dt>
-            <dd>Mero Vision Pvt. Ltd</dd>
-          </dl>
-        </Dialog>
+        <AboutDialog
+          appVersion={appVersion}
+          engine={engine}
+          logFile={logFile}
+          onOpenLogFolder={() => void openLogFolder().catch((e) => setError(String(e)))}
+          onClose={() => setDialog(null)}
+        />
       )}
-
-      {dialog === "shortcuts" && (
-        <Dialog title="Keyboard shortcuts" onClose={() => setDialog(null)}>
-          <table className="shortcut-table">
-            <tbody>
-              {SHORTCUTS.map(([what, keys]) => (
-                <tr key={what}>
-                  <td>{what}</td>
-                  <td>
-                    <kbd>{keys}</kbd>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </Dialog>
-      )}
+      {dialog === "shortcuts" && <ShortcutsDialog onClose={() => setDialog(null)} />}
     </div>
-  );
-}
-
-function Dialog({
-  title,
-  children,
-  actions,
-  onClose,
-}: {
-  title: string;
-  children: ReactNode;
-  /** Extra footer buttons, shown before Close. */
-  actions?: ReactNode;
-  onClose: () => void;
-}) {
-  return (
-    <div className="smoke" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="dialog-body">
-          <h2>{title}</h2>
-          {children}
-        </div>
-        <div className="dialog-foot">
-          {actions}
-          <button className={actions ? "btn" : "primary"} onClick={onClose} autoFocus={!actions}>
-            Close
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/** Only shown while the engine is starting or if it failed. */
-function EngineBadge({ engine }: { engine: EngineState }) {
-  if (engine.state === "ready") return null;
-  if (engine.state === "starting") return <span className="badge">Starting engine…</span>;
-  return (
-    <span className="badge err" title={engine.message}>
-      Engine unavailable
-    </span>
   );
 }

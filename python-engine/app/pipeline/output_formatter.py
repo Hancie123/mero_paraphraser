@@ -109,8 +109,8 @@ def _pieces(source: str, output: str) -> tuple[list[_Piece], int]:
             continue
         orig_core = orig.rstrip()
         pieces.append(_Piece(core, orig_core, True))
-        if new[len(core):] or orig[len(orig_core):]:
-            pieces.append(_Piece(new[len(core):], orig[len(orig_core):], False))
+        if new[len(core) :] or orig[len(orig_core) :]:
+            pieces.append(_Piece(new[len(core) :], orig[len(orig_core) :], False))
     return pieces, changed_words
 
 
@@ -172,14 +172,16 @@ def diff_segments(source: str, output: str) -> tuple[list[dict], int, int]:
 
     def change(text: str, orig: str, level: str | None = None, kind: str | None = None) -> None:
         core, orig_core = text.rstrip(), orig.strip()
-        segments.append({
-            "text": core,
-            "original": orig_core,
-            "kind": kind or change_kind(core, orig_core),
-            "level": level or change_level(core, orig_core),
-            "alternatives": [orig_core] if level == "sentence" else alternatives(core, orig_core),
-        })
-        plain(text[len(core):])
+        segments.append(
+            {
+                "text": core,
+                "original": orig_core,
+                "kind": kind or change_kind(core, orig_core),
+                "level": level or change_level(core, orig_core),
+                "alternatives": [orig_core] if level == "sentence" else alternatives(core, orig_core),
+            }
+        )
+        plain(text[len(core) :])
 
     # Split unchanged pieces at span edges, so every piece is wholly inside or outside a span.
     edges = sorted({x for span in spans for x in span})
@@ -315,15 +317,19 @@ class OutputFormatter:
         claims = _n(facts.claims, "claim")
         add(2, "ok", (f"{claims}; tracking " + _list(tracked, 4) if tracked else claims) + ".")
 
-        detail = (f"Rewrote {len(rewritten)} part{'s' * (len(rewritten) != 1)} in "
-                  f"{MODES[mode]} mode ({_strength_label(strength)} changes)")
+        detail = (
+            f"Rewrote {len(rewritten)} part{'s' * (len(rewritten) != 1)} in "
+            f"{MODES[mode]} mode ({_strength_label(strength)} changes)"
+        )
         if drafts > 1:
             detail += f"; kept the most human-sounding of {drafts} drafts per part"
         if meaning["retried"]:
             detail += f"; {meaning['retried']} rewritten again after validation"
         add(3, "ok", detail + ".")
 
-        detail = (f"{fixes} spacing, punctuation or grammar fix{'es' * (fixes != 1)}" if fixes else "No corrections needed")
+        detail = (
+            f"{fixes} spacing, punctuation or grammar fix{'es' * (fixes != 1)}" if fixes else "No corrections needed"
+        )
         if phrases:
             detail += f"; replaced {phrases} overused phrase{'s' * (phrases != 1)}"
         if dashes:
@@ -333,14 +339,20 @@ class OutputFormatter:
         add(4, "ok", detail + ".")
 
         if meaning["issues"]:
-            add(5, "warning", f"{meaning['passed']} of {meaning['parts']} parts passed. " + " ".join(meaning["issues"][:3]))
+            add(
+                5,
+                "warning",
+                f"{meaning['passed']} of {meaning['parts']} parts passed. " + " ".join(meaning["issues"][:3]),
+            )
         else:
             add(5, "ok", "Facts, numbers, names, negations and hedging preserved.")
 
         code_note = ""
         if code["blocks"]:
-            code_note = (f" Code: {_n(code['rewritten'], 'comment line')} reworded in {_n(code['blocks'], 'block')}; "
-                         "the code itself was checked and is unchanged.")
+            code_note = (
+                f" Code: {_n(code['rewritten'], 'comment line')} reworded in {_n(code['blocks'], 'block')}; "
+                "the code itself was checked and is unchanged."
+            )
             if code["untouched"]:
                 code_note += f" {_n(code['untouched'], 'block')} in an unrecognised language left as is."
         if not citations["ok"]:
@@ -368,7 +380,9 @@ class OutputFormatter:
             explain.append(f"Average sentence length went from {a:.0f} to {b:.0f} words.")
         ea, eb = reading_ease(processed.body), reading_ease(final_body)
         if ea is not None and eb is not None and abs(ea - eb) >= 5:
-            explain.append("The text is now easier to read." if eb > ea else "The wording is now more formal and dense.")
+            explain.append(
+                "The text is now easier to read." if eb > ea else "The wording is now more formal and dense."
+            )
         if facts.numbers or facts.names:
             explain.append("Kept every number, name and technical term from the original.")
         if protected_parts or citations["references"]:
@@ -380,15 +394,21 @@ class OutputFormatter:
         if dashes:
             explain.append(f"Replaced {_n(dashes, 'em dash', 'em dashes')} with commas, colons or full stops.")
         if processed.invisible:
-            explain.append(f"Removed {_n(processed.invisible, 'invisible character')} (zero-width spaces, soft hyphens and similar).")
+            explain.append(
+                f"Removed {_n(processed.invisible, 'invisible character')} (zero-width spaces, soft hyphens and similar)."
+            )
         if phrases:
             explain.append(f"Replaced {phrases} overused AI-style phrase{'s' * (phrases != 1)} with plainer wording.")
         if drafts > 1 or restructured:
-            explain.append("Chose more natural wording and a more varied sentence rhythm, so the text reads more like a person wrote it.")
+            explain.append(
+                "Chose more natural wording and a more varied sentence rhythm, so the text reads more like a person wrote it."
+            )
         if patterns:
             explain.append("Still reads a little machine-like here: " + _list(patterns, 3) + ".")
         if meaning["kept_original"]:
-            explain.append(f"{meaning['kept_original']} part{'s' * (meaning['kept_original'] != 1)} kept unchanged because the rewrite didn't pass validation.")
+            explain.append(
+                f"{meaning['kept_original']} part{'s' * (meaning['kept_original'] != 1)} kept unchanged because the rewrite didn't pass validation."
+            )
 
         return {
             "text": final_text,
@@ -398,8 +418,10 @@ class OutputFormatter:
                 "words_out": words_out,
                 "changes": changes,
                 "change_pct": pct,
-                "levels": {lvl: sum(1 for x in segments if x.get("level") == lvl)
-                           for lvl in ("word", "phrase", "sentence", "added")},
+                "levels": {
+                    lvl: sum(1 for x in segments if x.get("level") == lvl)
+                    for lvl in ("word", "phrase", "sentence", "added")
+                },
             },
             "report": {
                 "layers": [l.to_dict() for l in layers],

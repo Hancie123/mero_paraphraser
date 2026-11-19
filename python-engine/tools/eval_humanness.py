@@ -58,6 +58,23 @@ def gptzero(text: str, key: str) -> dict | None:
     }
 
 
+def measure(source: str, mode: str, strength: int, seed: int) -> dict:
+    """Paraphrase ``source`` and compute the local (offline, deterministic) metrics for it."""
+    result = paraphrase({"text": source, "mode": mode, "strength": strength, "seed": seed})
+    report = result["report"]
+    return {
+        "mode": mode,
+        "burstiness_in": round(burstiness(source), 2),
+        "burstiness_out": round(burstiness(result["text"]), 2),
+        "patterns_in": ai_patterns(source),
+        "patterns_out": ai_patterns(result["text"]),
+        "human_score": report.get("humanness", {}).get("score"),
+        "meaning_ok": not report["warnings"],
+        "warnings": report["warnings"],
+        "output": result["text"],
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--samples", type=Path, default=Path(__file__).with_name("samples"))
@@ -76,40 +93,33 @@ def main() -> None:
         for f in files:
             source = f.read_text(encoding="utf-8").strip()
             t = time.time()
-            result = paraphrase({"text": source, "mode": mode, "strength": args.strength, "seed": args.seed})
-            report = result["report"]
-            row = {
-                "file": f.name,
-                "mode": mode,
-                "seconds": round(time.time() - t, 1),
-                "burstiness_in": round(burstiness(source), 2),
-                "burstiness_out": round(burstiness(result["text"]), 2),
-                "patterns_in": ai_patterns(source),
-                "patterns_out": ai_patterns(result["text"]),
-                "human_score": report.get("humanness", {}).get("score"),
-                "meaning_ok": not report["warnings"],
-                "warnings": report["warnings"],
-                "output": result["text"],
-            }
+            row = {"file": f.name, **measure(source, mode, args.strength, args.seed)}
+            row["seconds"] = round(time.time() - t, 1)
             if key:
                 row["gptzero_in"] = gptzero(source, key)
-                row["gptzero_out"] = gptzero(result["text"], key)
+                row["gptzero_out"] = gptzero(row["output"], key)
             rows.append(row)
             gz = ""
             if key and row["gptzero_out"]:
                 gz = f"  GPTZero human {row['gptzero_in'] and row['gptzero_in']['human']} -> {row['gptzero_out']['human']}"
-            print(f"[{mode}] {f.name}: burstiness {row['burstiness_in']} -> {row['burstiness_out']}, "
-                  f"patterns {len(row['patterns_in'])} -> {len(row['patterns_out'])}, "
-                  f"human score {row['human_score']}, meaning {'ok' if row['meaning_ok'] else 'WARN'}, "
-                  f"{row['seconds']}s{gz}")
+            print(
+                f"[{mode}] {f.name}: burstiness {row['burstiness_in']} -> {row['burstiness_out']}, "
+                f"patterns {len(row['patterns_in'])} -> {len(row['patterns_out'])}, "
+                f"human score {row['human_score']}, meaning {'ok' if row['meaning_ok'] else 'WARN'}, "
+                f"{row['seconds']}s{gz}"
+            )
 
     print("\nSummary")
     for mode in MODES:
         mine = [r for r in rows if r["mode"] == mode]
-        line = (f"  {mode}: meaning ok {sum(r['meaning_ok'] for r in mine)}/{len(mine)}, "
-                f"burstiness {statistics.fmean(r['burstiness_out'] for r in mine):.2f}, "
-                f"patterns/passage {statistics.fmean(len(r['patterns_out']) for r in mine):.1f}")
-        scored = [r["gptzero_out"]["human"] for r in mine if r.get("gptzero_out") and r["gptzero_out"]["human"] is not None]
+        line = (
+            f"  {mode}: meaning ok {sum(r['meaning_ok'] for r in mine)}/{len(mine)}, "
+            f"burstiness {statistics.fmean(r['burstiness_out'] for r in mine):.2f}, "
+            f"patterns/passage {statistics.fmean(len(r['patterns_out']) for r in mine):.1f}"
+        )
+        scored = [
+            r["gptzero_out"]["human"] for r in mine if r.get("gptzero_out") and r["gptzero_out"]["human"] is not None
+        ]
         if scored:
             line += f", GPTZero rated human {sum(h >= 0.5 for h in scored)}/{len(scored)} (mean {statistics.fmean(scored):.2f})"
         print(line)

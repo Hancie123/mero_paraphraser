@@ -41,7 +41,8 @@ _JOINING_RANGES = (
     (0x1000, 0x109F),  # Myanmar
     (0x1780, 0x17FF),  # Khmer
     (0xA8E0, 0xA8FF),  # Devanagari extended
-    (0xFB50, 0xFDFF), (0xFE70, 0xFEFF),  # Arabic presentation forms
+    (0xFB50, 0xFDFF),
+    (0xFE70, 0xFEFF),  # Arabic presentation forms
 )
 
 
@@ -52,8 +53,13 @@ def _joining_script(ch: str) -> bool:
 
 def _emoji_like(ch: str) -> bool:
     cp = ord(ch)
-    return (cp >= 0x1F000 or 0x2190 <= cp <= 0x2BFF or 0x1F3FB <= cp <= 0x1F3FF
-            or cp in (0xFE0F, 0x20E3, 0x00A9, 0x00AE, 0x2122) or unicodedata.category(ch) == "So")
+    return (
+        cp >= 0x1F000
+        or 0x2190 <= cp <= 0x2BFF
+        or 0x1F3FB <= cp <= 0x1F3FF
+        or cp in (0xFE0F, 0x20E3, 0x00A9, 0x00AE, 0x2122)
+        or unicodedata.category(ch) == "So"
+    )
 
 
 def _has_rtl(text: str) -> bool:

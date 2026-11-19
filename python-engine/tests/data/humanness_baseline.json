@@ -1,0 +1,47 @@
+{
+  "humanize/climate_academic.txt": {
+    "burstiness_out": 0.13,
+    "patterns_out": [
+      "not only... but also",
+      "repeated sentence openers",
+      "even sentence lengths"
+    ],
+    "human_score": -0.36,
+    "meaning_ok": true
+  },
+  "humanize/healthcare.txt": {
+    "burstiness_out": 0.1,
+    "patterns_out": [
+      "summary opener",
+      "even sentence lengths"
+    ],
+    "human_score": -0.22,
+    "meaning_ok": true
+  },
+  "humanize/product_email.txt": {
+    "burstiness_out": 0.28,
+    "patterns_out": [
+      "even sentence lengths"
+    ],
+    "human_score": 0.07,
+    "meaning_ok": true
+  },
+  "humanize/remote_work.txt": {
+    "burstiness_out": 0.28,
+    "patterns_out": [
+      "summary opener",
+      "even sentence lengths"
+    ],
+    "human_score": -0.08,
+    "meaning_ok": true
+  },
+  "humanize/social_media.txt": {
+    "burstiness_out": 0.11,
+    "patterns_out": [
+      "summary opener",
+      "even sentence lengths"
+    ],
+    "human_score": -0.21,
+    "meaning_ok": true
+  }
+}

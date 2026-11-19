@@ -40,16 +40,20 @@ class InvisibleTests(unittest.TestCase):
 
 class SectionTests(unittest.TestCase):
     def test_locks_declaration_sections_and_keeps_prose(self):
-        text = ("Abstract\nWe study things.\n\nConclusion\nIt works.\n\nDeclarations\nFunding: none.\n\n"
-                "Conflict of interest\nNone declared.")
+        text = (
+            "Abstract\nWe study things.\n\nConclusion\nIt works.\n\nDeclarations\nFunding: none.\n\n"
+            "Conflict of interest\nNone declared."
+        )
         layout = analyze(text)
-        locked = [text[b.start:b.end] for b in layout.blocks if b.kind == "locked"]
+        locked = [text[b.start : b.end] for b in layout.blocks if b.kind == "locked"]
         self.assertEqual(locked, ["Declarations\nFunding: none.\n\nConflict of interest\nNone declared."])
         self.assertEqual([n for n, l in layout.sections if not l], ["Abstract", "Conclusion"])
 
     def test_finds_code_tables_and_math(self):
-        text = ("Some prose here.\n\nimport os\nfor f in os.listdir('.'):\n    print(f)\n\n"
-                "| a | b |\n|---|---|\n| 1 | 2 |\n\n$$x^2$$\n\nKeywords: remote work; wellbeing")
+        text = (
+            "Some prose here.\n\nimport os\nfor f in os.listdir('.'):\n    print(f)\n\n"
+            "| a | b |\n|---|---|\n| 1 | 2 |\n\n$$x^2$$\n\nKeywords: remote work; wellbeing"
+        )
         kinds = [b.kind for b in analyze(text).blocks]
         self.assertEqual(kinds, ["codeblock", "data", "math", "locked"])
 
@@ -114,17 +118,24 @@ class SignatureAndDashTests(unittest.TestCase):
         self.assertEqual(out, "Teachers play a major part in learning. It looks at data and shows many ideas.")
 
     def test_dashes(self):
-        self.assertEqual(clean_dashes("The results—which were clear—surprised us.")[0], "The results, which were clear, surprised us.")
+        self.assertEqual(
+            clean_dashes("The results—which were clear—surprised us.")[0],
+            "The results, which were clear, surprised us.",
+        )
         self.assertEqual(clean_dashes("Three things — cost, time and risk.")[0], "Three things: cost, time and risk.")
-        self.assertEqual(clean_dashes("It was clear — nobody came to the event.")[0], "It was clear. Nobody came to the event.")
+        self.assertEqual(
+            clean_dashes("It was clear — nobody came to the event.")[0], "It was clear. Nobody came to the event."
+        )
         self.assertEqual(clean_dashes("From 2010–2020, pp. 4–7.")[0], "From 2010–2020, pp. 4–7.")
 
 
 class PipelineTests(unittest.TestCase):
     def test_locked_sections_and_code_survive_the_pipeline(self):
-        doc = ("Abstract\nThis study delves into remote work — and its costs.\n\n```js\n"
-               "const x = 1; // we utilize this value in order to start the counter\n```\n\n"
-               "Funding\nThis work was funded by the National Science Foundation (grant 12345).")
+        doc = (
+            "Abstract\nThis study delves into remote work — and its costs.\n\n```js\n"
+            "const x = 1; // we utilize this value in order to start the counter\n```\n\n"
+            "Funding\nThis work was funded by the National Science Foundation (grant 12345)."
+        )
         r = handle({"cmd": "paraphrase", "text": doc, "strength": 70, "seed": 2})
         self.assertIn("Funding\nThis work was funded by the National Science Foundation (grant 12345).", r["text"])
         self.assertIn("const x = 1; //", r["text"])
@@ -144,16 +155,24 @@ class DocxTests(unittest.TestCase):
         self.assertEqual(build_docx("Same text."), build_docx("Same text."))
 
     def test_clean_removes_personal_metadata(self):
-        core = ('<?xml version="1.0"?><cp:coreProperties xmlns:cp="x" xmlns:dc="y"><dc:creator>Jane Doe</dc:creator>'
-                "</cp:coreProperties>")
-        doc = ('<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
-               '<w:p w:rsidR="00AB12CD"><w:ins w:author="Jane Doe" w:date="2026-01-01T00:00:00Z"><w:r><w:t>Hi</w:t></w:r></w:ins></w:p>'
-               "</w:body></w:document>")
-        rels = ('<Relationships><Relationship Id="r1" Target="docProps/core.xml"/>'
-                '<Relationship Id="r2" Target="docProps/custom.xml"/></Relationships>')
+        core = (
+            '<?xml version="1.0"?><cp:coreProperties xmlns:cp="x" xmlns:dc="y"><dc:creator>Jane Doe</dc:creator>'
+            "</cp:coreProperties>"
+        )
+        doc = (
+            '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'
+            '<w:p w:rsidR="00AB12CD"><w:ins w:author="Jane Doe" w:date="2026-01-01T00:00:00Z"><w:r><w:t>Hi</w:t></w:r></w:ins></w:p>'
+            "</w:body></w:document>"
+        )
+        rels = (
+            '<Relationships><Relationship Id="r1" Target="docProps/core.xml"/>'
+            '<Relationship Id="r2" Target="docProps/custom.xml"/></Relationships>'
+        )
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w") as z:
-            z.writestr("[Content_Types].xml", '<Types><Override PartName="/docProps/custom.xml" ContentType="x"/></Types>')
+            z.writestr(
+                "[Content_Types].xml", '<Types><Override PartName="/docProps/custom.xml" ContentType="x"/></Types>'
+            )
             z.writestr("_rels/.rels", rels)
             z.writestr("docProps/core.xml", core)
             z.writestr("docProps/custom.xml", "<Properties>secret</Properties>")

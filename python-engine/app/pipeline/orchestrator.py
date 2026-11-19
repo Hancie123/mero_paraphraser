@@ -38,6 +38,16 @@ from .output_formatter import OutputFormatter
 from .rewriting_engine import RewritingEngine
 from .semantic_analyzer import SemanticAnalyzer, facts_for
 
+# Each text part and code block gets its own seed, derived from the request seed, so
+# parts don't all pick the same wording while one seed still reproduces the whole
+# result. The strides are arbitrary; changing them changes the output for a given seed.
+PART_SEED_STRIDE = 7
+CODE_BLOCK_SEED_STRIDE = 31
+
+
+def _derive_seed(seed: int | None, index: int, stride: int) -> int | None:
+    return None if seed is None else seed + index * stride
+
 _PROFILE = bool(os.environ.get("MERO_PROFILE"))  # per-part timing on stderr
 
 
@@ -77,13 +87,19 @@ class ParaphrasePipeline:
         # Layers 4-7, part by part
         chunks: list[ChunkResult] = []
         for i, (piece, rewrite) in enumerate(chunk_text(processed.masked)):
-            chunk = ChunkResult(index=sum(1 for c in chunks if c.rewrite) + 1, source=piece, output=piece, rewrite=rewrite)
+            chunk = ChunkResult(
+                index=sum(1 for c in chunks if c.rewrite) + 1, source=piece, output=piece, rewrite=rewrite
+            )
             if rewrite:
                 started = time.perf_counter()
-                self._rewrite_part(chunk, strength, context, None if seed is None else seed + i * 7)
+                self._rewrite_part(chunk, strength, context, _derive_seed(seed, i, PART_SEED_STRIDE))
                 if _PROFILE:
-                    print(f"[mero] part {chunk.index}: {len(piece)} chars, {chunk.attempts} attempt(s), "
-                          f"{time.perf_counter() - started:.1f}s", file=sys.stderr, flush=True)
+                    print(
+                        f"[mero] part {chunk.index}: {len(piece)} chars, {chunk.attempts} attempt(s), "
+                        f"{time.perf_counter() - started:.1f}s",
+                        file=sys.stderr,
+                        flush=True,
+                    )
             chunks.append(chunk)
 
         # Code blocks: reword comments only; code_guard verifies the code is byte-identical.
@@ -92,7 +108,7 @@ class ParaphrasePipeline:
             if p.kind != "codeblock":
                 continue
             code["blocks"] += 1
-            res = rewrite_block(p.text, p.lang, strength, None if seed is None else seed + p.index * 31)
+            res = rewrite_block(p.text, p.lang, strength, _derive_seed(seed, p.index, CODE_BLOCK_SEED_STRIDE))
             code["comments"] += res.comments
             code["rewritten"] += res.rewritten
             if res.lang is None:
@@ -106,8 +122,16 @@ class ParaphrasePipeline:
         citations = self.citation_validator.validate(processed, final)
         # Layer 8
         return self.output_formatter.format(
-            processed, final, chunks, context, facts, meaning, citations,
-            mode=mode, strength=strength, code=code,
+            processed,
+            final,
+            chunks,
+            context,
+            facts,
+            meaning,
+            citations,
+            mode=mode,
+            strength=strength,
+            code=code,
         )
 
     def _rewrite_part(self, chunk: ChunkResult, strength: int, context, seed: int | None) -> None:

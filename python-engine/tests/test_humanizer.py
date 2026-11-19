@@ -18,8 +18,10 @@ def rng():
 
 class PatternTests(unittest.TestCase):
     def test_detects_ai_structures(self):
-        text = ("It not only saves time but also money. Furthermore, it is cheap. Furthermore, it is fast. "
-                "Overall, it works.")
+        text = (
+            "It not only saves time but also money. Furthermore, it is cheap. Furthermore, it is fast. "
+            "Overall, it works."
+        )
         found = ai_patterns(text)
         for name in ("not only... but also", "summary opener", "repeated sentence openers"):
             self.assertIn(name, found)
@@ -43,8 +45,11 @@ class RestructureTests(unittest.TestCase):
         self.assertEqual(restructure(text, text, rng())[0], text)
 
     def test_drops_added_summary_sentence(self):
-        out, _ = restructure("It rains. Roads flood. People stay home. In summary, storms disrupt life.",
-                             "It rains. Roads flood. People stay home.", rng())
+        out, _ = restructure(
+            "It rains. Roads flood. People stay home. In summary, storms disrupt life.",
+            "It rains. Roads flood. People stay home.",
+            rng(),
+        )
         self.assertEqual(out, "It rains. Roads flood. People stay home.")
 
     def test_contractions(self):
@@ -53,12 +58,15 @@ class RestructureTests(unittest.TestCase):
 
     def test_em_dashes_removed(self):
         from app.pipeline.language_refiner import LanguageRefiner
+
         out = LanguageRefiner().refine("It failed—badly. Then—later—it worked.", "It failed—badly.", 1).text
         self.assertEqual(out, "It failed, badly. Then, later, it worked.")
 
     def test_transition_swap_keeps_meaning_and_names(self):
         outs = {restructure("However, Smith left.", "x", random.Random(s))[0] for s in range(20)}
-        self.assertTrue(outs <= {"However, Smith left.", "That said, Smith left.", "Still, Smith left.", "But Smith left."})
+        self.assertTrue(
+            outs <= {"However, Smith left.", "That said, Smith left.", "Still, Smith left.", "But Smith left."}
+        )
         self.assertGreater(len(outs), 1)
 
     def test_this_opener_merged(self):
@@ -70,8 +78,10 @@ class RestructureTests(unittest.TestCase):
         self.assertEqual(out, "If possible, test the method used.")
 
     def test_splits_long_sentence_when_lengths_are_even(self):
-        long = ("Companies are investing in new digital tools for their staff, and they are training managers "
-                "to lead distributed teams with care.")
+        long = (
+            "Companies are investing in new digital tools for their staff, and they are training managers "
+            "to lead distributed teams with care."
+        )
         text = f"{long} {long} {long}"
         out, n = restructure(text, "x", rng())
         self.assertGreaterEqual(n, 1)

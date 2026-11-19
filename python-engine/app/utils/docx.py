@@ -56,8 +56,10 @@ _DOC_RELS = """<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 
 
 def _style(sid: str, name: str, ppr: str = "", rpr: str = "") -> str:
-    return (f'<w:style w:type="paragraph" w:styleId="{sid}"><w:name w:val="{name}"/><w:basedOn w:val="Normal"/>'
-            f'<w:next w:val="Normal"/><w:qFormat/><w:pPr>{ppr}</w:pPr><w:rPr>{rpr}</w:rPr></w:style>')
+    return (
+        f'<w:style w:type="paragraph" w:styleId="{sid}"><w:name w:val="{name}"/><w:basedOn w:val="Normal"/>'
+        f'<w:next w:val="Normal"/><w:qFormat/><w:pPr>{ppr}</w:pPr><w:rPr>{rpr}</w:rPr></w:style>'
+    )
 
 
 _STYLES = (
@@ -65,16 +67,32 @@ _STYLES = (
     f'<w:styles xmlns:w="{W}">'
     '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:cs="Calibri"/>'
     '<w:sz w:val="22"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="160" w:line="276" w:lineRule="auto"/>'
-    '</w:pPr></w:pPrDefault></w:docDefaults>'
+    "</w:pPr></w:pPrDefault></w:docDefaults>"
     '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>'
-    + _style("Heading1", "heading 1", '<w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="0"/>',
-             '<w:b/><w:sz w:val="32"/>')
-    + _style("Heading2", "heading 2", '<w:keepNext/><w:spacing w:before="200" w:after="60"/><w:outlineLvl w:val="1"/>',
-             '<w:b/><w:sz w:val="26"/>')
-    + _style("Heading3", "heading 3", '<w:keepNext/><w:spacing w:before="160" w:after="40"/><w:outlineLvl w:val="2"/>',
-             '<w:b/><w:sz w:val="23"/>')
-    + _style("Code", "Code", '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>',
-             '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="19"/>')
+    + _style(
+        "Heading1",
+        "heading 1",
+        '<w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="0"/>',
+        '<w:b/><w:sz w:val="32"/>',
+    )
+    + _style(
+        "Heading2",
+        "heading 2",
+        '<w:keepNext/><w:spacing w:before="200" w:after="60"/><w:outlineLvl w:val="1"/>',
+        '<w:b/><w:sz w:val="26"/>',
+    )
+    + _style(
+        "Heading3",
+        "heading 3",
+        '<w:keepNext/><w:spacing w:before="160" w:after="40"/><w:outlineLvl w:val="2"/>',
+        '<w:b/><w:sz w:val="23"/>',
+    )
+    + _style(
+        "Code",
+        "Code",
+        '<w:spacing w:after="0" w:line="240" w:lineRule="auto"/>',
+        '<w:rFonts w:ascii="Consolas" w:hAnsi="Consolas" w:cs="Consolas"/><w:sz w:val="19"/>',
+    )
     + "</w:styles>"
 )
 
@@ -159,18 +177,19 @@ def _body(text: str) -> list[str]:
 def build_docx(text: str) -> bytes:
     document = (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-        f'<w:document xmlns:w="{W}"><w:body>' + "".join(_body(text))
-        + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
+        f'<w:document xmlns:w="{W}"><w:body>' + "".join(_body(text)) + '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/>'
         '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/>'
         "</w:sectPr></w:body></w:document>"
     )
-    return _zip([
-        ("[Content_Types].xml", _CONTENT_TYPES.encode()),
-        ("_rels/.rels", _ROOT_RELS.encode()),
-        ("word/document.xml", document.encode()),
-        ("word/_rels/document.xml.rels", _DOC_RELS.encode()),
-        ("word/styles.xml", _STYLES.encode()),
-    ])
+    return _zip(
+        [
+            ("[Content_Types].xml", _CONTENT_TYPES.encode()),
+            ("_rels/.rels", _ROOT_RELS.encode()),
+            ("word/document.xml", document.encode()),
+            ("word/_rels/document.xml.rels", _DOC_RELS.encode()),
+            ("word/styles.xml", _STYLES.encode()),
+        ]
+    )
 
 
 def _zip(entries: list[tuple[str, bytes]]) -> bytes:
@@ -185,6 +204,7 @@ def _zip(entries: list[tuple[str, bytes]]) -> bytes:
 
 
 # ---------------------------------------------------------------- reading
+
 
 def _open(data: bytes) -> zipfile.ZipFile:
     if len(data) > MAX_DOCX_BYTES:
@@ -251,16 +271,16 @@ def read_docx(data: bytes) -> str:
 # ---------------------------------------------------------------- personal-metadata cleanup
 
 _EMPTY_CORE = (
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
-    'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
-    'xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>'
-).encode()
+    b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    b'<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" '
+    b'xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" '
+    b'xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"/>'
+)
 _EMPTY_APP = (
-    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
-    '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
-    'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"/>'
-).encode()
+    b'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    b'<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/extended-properties" '
+    b'xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes"/>'
+)
 
 _REMOVED_PARTS = (
     (re.compile(r"^docProps/custom\.xml$"), "custom document properties"),
@@ -331,16 +351,22 @@ def clean_docx(data: bytes) -> tuple[bytes, list[str]]:
                 if _attr(el, b"TargetMode") == "External":
                     return el
                 target = _attr(el, b"Target")
-                path = target.lstrip("/") if target.startswith("/") else posixpath.normpath(posixpath.join(base, target))
+                path = (
+                    target.lstrip("/") if target.startswith("/") else posixpath.normpath(posixpath.join(base, target))
+                )
                 return b"" if path in removed else el
 
             blob = _REL_EL.sub(keep, blob)
         elif name == "[Content_Types].xml":
-            blob = _OVERRIDE_EL.sub(lambda m: b"" if _attr(m.group(), b"PartName").lstrip("/") in removed else m.group(), blob)
+            blob = _OVERRIDE_EL.sub(
+                lambda m: b"" if _attr(m.group(), b"PartName").lstrip("/") in removed else m.group(), blob
+            )
         entries.append((name, blob))
     if changes:
-        report.append("Removed revision-session IDs, document variables and template path; "
-                      "comment and tracked-change authors renamed to \"Author\" and their dates removed.")
+        report.append(
+            "Removed revision-session IDs, document variables and template path; "
+            'comment and tracked-change authors renamed to "Author" and their dates removed.'
+        )
     entries.sort(key=lambda e: e[0] != "[Content_Types].xml")
     seen: set[str] = set()
     report = [r for r in report if not (r in seen or seen.add(r))]

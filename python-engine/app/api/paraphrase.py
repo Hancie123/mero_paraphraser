@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import base64
 import binascii
+import os
+import time
 
 from ..core.config import MODES, VERSION
 from ..pipeline.orchestrator import ParaphrasePipeline
@@ -46,6 +48,10 @@ def handle(req: dict) -> dict:
         if cmd == "clean_docx":
             blob, removed = clean_docx(_bytes(req))
             return {"data": _b64(blob), "removed": removed}
+        if cmd == "sleep" and os.environ.get("MERO_ENGINE_TESTING") == "1":
+            # Lets the app's tests simulate a stuck engine (timeout / cancel).
+            time.sleep(float(req.get("seconds", 1)))
+            return {}
     except DocxError as exc:
         raise ParaphraseError(str(exc)) from None
     raise ParaphraseError(f"unknown command {cmd!r}")

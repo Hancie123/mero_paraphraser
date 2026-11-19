@@ -13,17 +13,62 @@ LENGTH = (0.55, 1.7)  # allowed output/input word ratio per part
 
 # Words that make text read as AI-written. tools/build_lexicon.py never offers
 # them as synonyms. Multi-word phrases are handled by Layer 5 (language_refiner).
-AVOID_WORDS: frozenset[str] = frozenset({
-    "delve", "delves", "delved", "delving", "tapestry", "testament", "multifaceted", "realm",
-    "seamless", "seamlessly", "embark", "showcasing", "underscore", "underscores", "pivotal",
-    "intricate", "moreover", "furthermore", "additionally", "notably", "crucial", "leverage",
-    "foster", "robust", "heightened", "meticulous", "meticulously", "paramount", "commendable",
-    "unwavering", "holistic", "synergy", "bustling", "vibrant", "nuanced", "utilize", "utilizes",
-    "utilized", "facilitate", "facilitates", "endeavor", "endeavors", "myriad", "plethora",
-    "invaluable", "noteworthy", "profound", "transformative", "elevate", "elevates", "dynamically",
-    "landscape",
-})
-
+AVOID_WORDS: frozenset[str] = frozenset(
+    {
+        "delve",
+        "delves",
+        "delved",
+        "delving",
+        "tapestry",
+        "testament",
+        "multifaceted",
+        "realm",
+        "seamless",
+        "seamlessly",
+        "embark",
+        "showcasing",
+        "underscore",
+        "underscores",
+        "pivotal",
+        "intricate",
+        "moreover",
+        "furthermore",
+        "additionally",
+        "notably",
+        "crucial",
+        "leverage",
+        "foster",
+        "robust",
+        "heightened",
+        "meticulous",
+        "meticulously",
+        "paramount",
+        "commendable",
+        "unwavering",
+        "holistic",
+        "synergy",
+        "bustling",
+        "vibrant",
+        "nuanced",
+        "utilize",
+        "utilizes",
+        "utilized",
+        "facilitate",
+        "facilitates",
+        "endeavor",
+        "endeavors",
+        "myriad",
+        "plethora",
+        "invaluable",
+        "noteworthy",
+        "profound",
+        "transformative",
+        "elevate",
+        "elevates",
+        "dynamically",
+        "landscape",
+    }
+)
 
 
 def drafts_for(strength: int) -> int:

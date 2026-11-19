@@ -1,16 +1,16 @@
+import articles from "../python-engine/app/data/articles.json";
 import type { Segment } from "./api";
 
-const AN_EXCEPTIONS = ["hour", "honest", "honor", "honour", "heir"];
-const A_EXCEPTIONS = [
-  "unique", "unit", "univ", "unif", "union", "unicorn", "usual", "use", "usa",
-  "utili", "utop", "euro", "eu", "one", "once", "ufo",
-];
+// Prefixes that override the vowel rule; shared with the engine (python-engine/app/utils/text_utils.py).
+const AN_EXCEPTIONS: string[] = articles.an;
+const A_EXCEPTIONS: string[] = articles.a;
 
 export function wantsAn(word: string): boolean {
   const w = word.toLowerCase();
+  if (!w) return false;
   if (AN_EXCEPTIONS.some((p) => w.startsWith(p))) return true;
   if (A_EXCEPTIONS.some((p) => w.startsWith(p))) return false;
-  return "aeiou".includes(w[0] ?? "");
+  return "aeiou".includes(w[0]);
 }
 
 function withArticle(article: string, word: string): string {
@@ -25,7 +25,8 @@ export function replaceSegment(segments: Segment[], index: number, text: string)
   next[index].text = text;
 
   const prev = next[index - 1];
-  if (!prev) return next;
+  // No word to agree with (e.g. the span was deleted): leave the article as written.
+  if (!prev || !text.trim()) return next;
   // Article at the end of the preceding unchanged chunk: "... a "
   const tail = prev.text.match(/(^|[^\p{L}])(a|an)([ \t]+)$/iu);
   if (tail) {
@@ -41,4 +42,6 @@ export function replaceSegment(segments: Segment[], index: number, text: string)
   return next;
 }
 
-export const countWords = (text: string) => (text.match(/[\p{L}\p{N}]+(?:['’][\p{L}\p{N}]+)*/gu) ?? []).length;
+// \p{M} keeps combining marks (Devanagari vowel signs, virama) inside the word.
+export const countWords = (text: string) =>
+  (text.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:['’][\p{L}\p{M}\p{N}]+)*/gu) ?? []).length;

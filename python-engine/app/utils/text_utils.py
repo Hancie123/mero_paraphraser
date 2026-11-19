@@ -2,14 +2,35 @@
 
 from __future__ import annotations
 
+import json
 import re
+from pathlib import Path
 
 WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
 # Diff tokens: a word or symbol plus the whitespace after it.
 TOKEN_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*\s*|[^\w\s]\s*|_+\s*|\s+")
 PLACEHOLDER_RE = re.compile(r"\[\[\s*(\d+)\s*\]\]")
 
-_ABBREVIATIONS = {"e.g", "i.e", "etc", "al", "vs", "cf", "approx", "fig", "no", "vol", "pp", "p", "dr", "mr", "mrs", "ms", "prof", "st"}
+_ABBREVIATIONS = {
+    "e.g",
+    "i.e",
+    "etc",
+    "al",
+    "vs",
+    "cf",
+    "approx",
+    "fig",
+    "no",
+    "vol",
+    "pp",
+    "p",
+    "dr",
+    "mr",
+    "mrs",
+    "ms",
+    "prof",
+    "st",
+}
 _SENTENCE_END = re.compile(r"(?<=[.!?…])[\"”’)\]]*\s+(?=[\"“‘(\[]*[A-Z0-9\[])")
 
 
@@ -30,13 +51,13 @@ def split_sentences(text: str) -> list[str]:
     out: list[str] = []
     start = 0
     for m in _SENTENCE_END.finditer(text):
-        before = text[start:m.start()].rstrip("\"”’)]")
+        before = text[start : m.start()].rstrip('"”’)]')
         last = re.search(r"(\w+(?:\.\w+)*)\.$", before)
         if last and last.group(1).lower() in _ABBREVIATIONS:
             continue
         if last and len(last.group(1)) == 1 and last.group(1).isupper():  # initials: "J. Smith"
             continue
-        out.append(text[start:m.start()].strip())
+        out.append(text[start : m.start()].strip())
         start = m.end()
     tail = text[start:].strip()
     if tail:
@@ -54,11 +75,10 @@ def match_case(original: str, replacement: str) -> str:
     return replacement
 
 
-_AN_EXCEPTIONS = ("hour", "honest", "honor", "honour", "heir")
-_A_EXCEPTIONS = (
-    "unique", "unit", "univ", "unif", "union", "unicorn", "usual", "use", "usa",
-    "utili", "utop", "euro", "eu", "one", "once", "ufo",
-)
+# Prefixes that override the vowel rule; shared with the UI (src/text.ts).
+_ARTICLES = json.loads((Path(__file__).resolve().parents[1] / "data" / "articles.json").read_text(encoding="utf-8"))
+_AN_EXCEPTIONS = tuple(_ARTICLES["an"])
+_A_EXCEPTIONS = tuple(_ARTICLES["a"])
 
 
 def wants_an(word: str) -> bool:

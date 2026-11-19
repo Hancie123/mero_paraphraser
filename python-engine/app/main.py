@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import traceback
 from pathlib import Path
 
 if __package__ in (None, ""):  # run as a script: make the "app" package importable
@@ -46,6 +47,7 @@ def serve() -> None:
         except ParaphraseError as exc:
             resp = {"id": rid, "ok": False, "error": str(exc)}
         except Exception as exc:  # keep serving; report the failure to the app
+            traceback.print_exc()  # stderr goes to engine.log in release builds
             resp = {"id": rid, "ok": False, "error": f"internal engine error: {exc}"}
         sys.stdout.write(json.dumps(resp, ensure_ascii=False) + "\n")
         sys.stdout.flush()

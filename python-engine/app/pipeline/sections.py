@@ -52,7 +52,12 @@ _LOCKED_SECTIONS = (
 )
 _NUMBERING = r"(?:(?:\d+(?:\.\d+)*|[IVXLC]+|[A-Z])[.)]?\s+)?"
 _HEADING_RE = re.compile(
-    r"^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?" + _NUMBERING + r"(?P<name>" + _PROSE_SECTIONS + "|" + _LOCKED_SECTIONS
+    r"^[ \t]*(?:#{1,6}[ \t]*)?(?:\*\*)?"
+    + _NUMBERING
+    + r"(?P<name>"
+    + _PROSE_SECTIONS
+    + "|"
+    + _LOCKED_SECTIONS
     + r")(?:\*\*)?[ \t]*:?[ \t]*$",
     re.IGNORECASE,
 )
@@ -60,13 +65,17 @@ _LOCKED_RE = re.compile(r"^(?:" + _LOCKED_SECTIONS + r")$", re.IGNORECASE)
 _MD_HEADING_RE = re.compile(r"^[ \t]*#{1,6}[ \t]+\S.*$")
 _NUMBERED_HEADING_RE = re.compile(r"^[ \t]*\d+(?:\.\d+)*\.?[ \t]+[A-Z][^.!?]{0,80}$")
 # "Keywords: a; b; c" on one line
-_KEYWORD_LINE_RE = re.compile(r"^[ \t]*(?:keywords|key words|index terms|jel(?: classification)?(?: codes)?|msc(?: \d+)?)[ \t]*[:—–-].*$",
-                              re.IGNORECASE)
+_KEYWORD_LINE_RE = re.compile(
+    r"^[ \t]*(?:keywords|key words|index terms|jel(?: classification)?(?: codes)?|msc(?: \d+)?)[ \t]*[:—–-].*$",
+    re.IGNORECASE,
+)
 
 _FENCE_RE = re.compile(r"^[ \t]{0,3}(`{3,}|~{3,})[ \t]*([\w+#.-]*)")
-_LATEX_ENV_RE = re.compile(r"\\begin\{(equation|align|gather|multline|eqnarray|displaymath|math|array|"
-                           r"[pbvBV]?matrix|cases|split|table|tabular|tabularx|longtable|figure|algorithm|"
-                           r"algorithmic|verbatim|lstlisting|minted|code)(\*?)\}")
+_LATEX_ENV_RE = re.compile(
+    r"\\begin\{(equation|align|gather|multline|eqnarray|displaymath|math|array|"
+    r"[pbvBV]?matrix|cases|split|table|tabular|tabularx|longtable|figure|algorithm|"
+    r"algorithmic|verbatim|lstlisting|minted|code)(\*?)\}"
+)
 _LISTING_LANG_RE = re.compile(r"language\s*=\s*([\w+#]+)|\\begin\{minted\}(?:\[[^\]]*\])?\{([\w+#]+)\}")
 
 
@@ -94,12 +103,24 @@ _CODE_LINE = [
     (r"^\s*print\(.*\)\s*$", "python", True),
     (r"^\s*#include\s*[<\"]", "c", True),
     (r"^\s*(?:public|private|protected)\s+(?:static\s+)?[\w<>\[\], ]+\s+\w+\s*\(.*\)\s*\{?\s*$", "java", True),
-    (r"^\s*(?:function\s+\w*\s*\(|(?:const|let|var)\s+[\w{}\[\], ]+\s*=|export\s+(?:default\s+)?(?:function|const|class|interface|type)\b|"
-     r"console\.log\(|import\s+.*\s+from\s+['\"])", "js", True),
+    (
+        r"^\s*(?:function\s+\w*\s*\(|(?:const|let|var)\s+[\w{}\[\], ]+\s*=|export\s+(?:default\s+)?(?:function|const|class|interface|type)\b|"
+        r"console\.log\(|import\s+.*\s+from\s+['\"])",
+        "js",
+        True,
+    ),
     (r"^\s*(?:fn\s+\w+|let\s+mut\s|use\s+[\w:]+(?:::\{.*\})?;|impl\b|pub\s+(?:fn|struct|enum)\b)", "rust", True),
     (r"^\s*(?:package\s+\w+\s*$|func\s+(?:\(.*\)\s*)?\w+\s*\()", "go", True),
-    (r"^\s*(?:SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|CREATE\s+(?:TABLE|INDEX|VIEW)|ALTER\s+TABLE|DROP\s+TABLE)\b", "sql", True),
-    (r"^\s*(?:#!/|sudo\s|apt(?:-get)?\s|pip\s+install|npm\s+(?:install|run)|cd\s+\S+$|echo\s|export\s+\w+=)", "shell", True),
+    (
+        r"^\s*(?:SELECT|INSERT\s+INTO|UPDATE|DELETE\s+FROM|CREATE\s+(?:TABLE|INDEX|VIEW)|ALTER\s+TABLE|DROP\s+TABLE)\b",
+        "sql",
+        True,
+    ),
+    (
+        r"^\s*(?:#!/|sudo\s|apt(?:-get)?\s|pip\s+install|npm\s+(?:install|run)|cd\s+\S+$|echo\s|export\s+\w+=)",
+        "shell",
+        True,
+    ),
     (r".*[;{]\s*(?://.*)?$|^\s*[})\]]+[;,)]*\s*$", "", True),
     (r"^\s*[\w.\[\]'\"]+\s*(?:[-+*/%]?=)(?!=)\s*\S", "", False),
     (r"^\s*(?:#|//|/\*|\*|\*/|--)", "", False),
@@ -158,6 +179,7 @@ def _is_data(lines: list[str]) -> bool:
 
 
 # ---------------------------------------------------------------- scanning
+
 
 def _lines(text: str) -> list[tuple[int, int, str]]:
     """(start, end-without-newline, line) for every line."""
@@ -218,14 +240,18 @@ def analyze(text: str) -> Layout:
             if env:
                 closer = "\\end{" + env.group(1) + env.group(2) + "}"
                 name = env.group(1)
-                kind = ("data" if name in ("table", "tabular", "tabularx", "longtable", "figure")
-                        else "codeblock" if name in ("verbatim", "lstlisting", "minted", "code", "algorithm", "algorithmic")
-                        else "math")
+                kind = (
+                    "data"
+                    if name in ("table", "tabular", "tabularx", "longtable", "figure")
+                    else "codeblock"
+                    if name in ("verbatim", "lstlisting", "minted", "code", "algorithm", "algorithmic")
+                    else "math"
+                )
             else:
                 closer = "$$" if line.strip().startswith("$$") else "\\]"
                 kind, name = "math", ""
             j = i
-            after_open = line[line.find(closer[:2]) + 2:] if not env else line[env.end():]
+            after_open = line[line.find(closer[:2]) + 2 :] if not env else line[env.end() :]
             if closer not in after_open:
                 j = i + 1
                 while j < n and closer not in lines[j][2]:

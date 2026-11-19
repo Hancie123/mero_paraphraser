@@ -13,9 +13,46 @@ from ..utils.text_utils import STOPWORDS, avg_sentence_length, split_sentences
 
 _ACRONYM = re.compile(r"\b[A-Z][A-Z0-9&]*(?:-[A-Z0-9]+)*[A-Z0-9]s?\b")
 _CAP_RUN = re.compile(r"\b[A-Z][a-z][\w'’-]*(?:\s+(?:of|the|and|for|de|van|von|la)?\s*[A-Z][a-z][\w'’-]*)*")
-_LEAD_WORDS = {"The", "A", "An", "This", "That", "These", "Those", "In", "On", "At", "For", "However", "But",
-               "And", "It", "We", "They", "He", "She", "I", "If", "When", "While", "As", "Our", "Their", "My",
-               "Its", "Many", "Some", "Most", "All", "Each", "Every", "There", "Here", "Although", "Because"}
+_LEAD_WORDS = {
+    "The",
+    "A",
+    "An",
+    "This",
+    "That",
+    "These",
+    "Those",
+    "In",
+    "On",
+    "At",
+    "For",
+    "However",
+    "But",
+    "And",
+    "It",
+    "We",
+    "They",
+    "He",
+    "She",
+    "I",
+    "If",
+    "When",
+    "While",
+    "As",
+    "Our",
+    "Their",
+    "My",
+    "Its",
+    "Many",
+    "Some",
+    "Most",
+    "All",
+    "Each",
+    "Every",
+    "There",
+    "Here",
+    "Although",
+    "Because",
+}
 
 RELATIONSHIPS = {
     "contrast": r"\b(?:however|but|although|though|whereas|yet|nevertheless|nonetheless|despite|in contrast|on the other hand|while)\b",
@@ -45,7 +82,7 @@ def proper_names(text: str) -> list[str]:
     for sentence in split_sentences(text):
         for m in _CAP_RUN.finditer(sentence):
             run = m.group()
-            first = m.start() == len(sentence) - len(sentence.lstrip("\"“‘([")) or m.start() == 0
+            first = m.start() == len(sentence) - len(sentence.lstrip('"“‘([')) or m.start() == 0
             parts = run.split()
             if first:
                 if parts[0] in _LEAD_WORDS:
@@ -69,9 +106,7 @@ def key_terms(text: str, names: list[str], limit: int = 8) -> list[str]:
     tokens = re.findall(r"[a-z][a-z'-]{3,}", lowered)
     name_words = {w.lower() for n in names for w in n.split()}
     content = [t for t in tokens if t not in STOPWORDS and t not in name_words]
-    bigrams = Counter(
-        f"{a} {b}" for a, b in zip(content, content[1:]) if f"{a} {b}" in lowered
-    )
+    bigrams = Counter(f"{a} {b}" for a, b in zip(content, content[1:]) if f"{a} {b}" in lowered)
     terms = [b for b, n in bigrams.most_common() if n >= 2][:limit]
     singles = Counter(t for t in content if len(t) >= 6)
     for w, n in singles.most_common():

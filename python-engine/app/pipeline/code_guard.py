@@ -29,6 +29,7 @@ Token = tuple[str, str]  # (kind, text)
 
 # ---------------------------------------------------------------- language specs
 
+
 @dataclass(frozen=True)
 class Spec:
     line: tuple[str, ...] = ()
@@ -56,8 +57,10 @@ SPECS: dict[str, Spec] = {
     "c": _C,
     "cpp": Spec(line=("//",), block=(("/*", "*/"),), quotes="\"'", char_strict=True, raw_pairs=(('R"(', ')"'),)),
     "go": Spec(line=("//",), block=(("/*", "*/"),), quotes="\"'`", multiline_quotes="`", char_strict=True),
-    "rust": Spec(line=("//",), block=(("/*", "*/"),), quotes="\"'", multiline_quotes="\"", char_strict=True, nested=True),
-    "swift": Spec(line=("//",), block=(("/*", "*/"),), quotes="\"", triple=True, nested=True),
+    "rust": Spec(
+        line=("//",), block=(("/*", "*/"),), quotes="\"'", multiline_quotes='"', char_strict=True, nested=True
+    ),
+    "swift": Spec(line=("//",), block=(("/*", "*/"),), quotes='"', triple=True, nested=True),
     "kotlin": Spec(line=("//",), block=(("/*", "*/"),), quotes="\"'", triple=True, char_strict=True, nested=True),
     "js": Spec(line=("//",), block=(("/*", "*/"),), quotes="'\"`", multiline_quotes="`", regex=True),
     "php": Spec(line=("//", "#"), block=(("/*", "*/"),), quotes="'\"", multiline_quotes="'\""),
@@ -65,21 +68,71 @@ SPECS: dict[str, Spec] = {
     "scss": Spec(line=("//",), block=(("/*", "*/"),), quotes="'\""),
     "sql": Spec(line=("--",), block=(("/*", "*/"),), quotes="'\"", multiline_quotes="'"),
     "lua": Spec(line=("--",), block=(("--[[", "]]"),), quotes="'\"", raw_pairs=(("[[", "]]"),)),
-    "haskell": Spec(line=("--",), block=(("{-", "-}"),), quotes="\"", char_strict=True, nested=True),
+    "haskell": Spec(line=("--",), block=(("{-", "-}"),), quotes='"', char_strict=True, nested=True),
     "html": Spec(block=(("<!--", "-->"),)),
     "latex": Spec(line=("%",), no_escape_prev="\\"),
 }
 ALIASES = {
-    "py": "python", "python3": "python", "py3": "python", "ipython": "python", "pycon": None,
-    "sh": "shell", "bash": "shell", "zsh": "shell", "console": None, "shell-session": None, "dockerfile": "shell",
-    "docker": "shell", "makefile": "shell", "make": "shell", "powershell": "shell", "ps1": "shell", "ps": "shell",
-    "yml": "yaml", "rb": "ruby", "c": "c", "h": "c", "objc": "c", "objective-c": "c",
-    "c++": "cpp", "cc": "cpp", "cxx": "cpp", "hpp": "cpp", "java": "c", "cs": "c", "csharp": "c", "c#": "c",
-    "scala": "kotlin", "kt": "kotlin", "kts": "kotlin", "dart": "kotlin", "golang": "go", "rs": "rust",
-    "javascript": "js", "jsx": "js", "ts": "js", "typescript": "js", "tsx": "js", "mjs": "js", "cjs": "js",
-    "json5": "js", "jsonc": "js", "less": "scss", "sass": "scss", "psql": "sql", "mysql": "sql",
-    "plsql": "sql", "postgresql": "sql", "tsql": "sql", "hs": "haskell", "xml": "html", "svg": "html",
-    "vue": "html", "xhtml": "html", "tex": "latex", "r": "r",
+    "py": "python",
+    "python3": "python",
+    "py3": "python",
+    "ipython": "python",
+    "pycon": None,
+    "sh": "shell",
+    "bash": "shell",
+    "zsh": "shell",
+    "console": None,
+    "shell-session": None,
+    "dockerfile": "shell",
+    "docker": "shell",
+    "makefile": "shell",
+    "make": "shell",
+    "powershell": "shell",
+    "ps1": "shell",
+    "ps": "shell",
+    "yml": "yaml",
+    "rb": "ruby",
+    "c": "c",
+    "h": "c",
+    "objc": "c",
+    "objective-c": "c",
+    "c++": "cpp",
+    "cc": "cpp",
+    "cxx": "cpp",
+    "hpp": "cpp",
+    "java": "c",
+    "cs": "c",
+    "csharp": "c",
+    "c#": "c",
+    "scala": "kotlin",
+    "kt": "kotlin",
+    "kts": "kotlin",
+    "dart": "kotlin",
+    "golang": "go",
+    "rs": "rust",
+    "javascript": "js",
+    "jsx": "js",
+    "ts": "js",
+    "typescript": "js",
+    "tsx": "js",
+    "mjs": "js",
+    "cjs": "js",
+    "json5": "js",
+    "jsonc": "js",
+    "less": "scss",
+    "sass": "scss",
+    "psql": "sql",
+    "mysql": "sql",
+    "plsql": "sql",
+    "postgresql": "sql",
+    "tsql": "sql",
+    "hs": "haskell",
+    "xml": "html",
+    "svg": "html",
+    "vue": "html",
+    "xhtml": "html",
+    "tex": "latex",
+    "r": "r",
 }
 
 
@@ -138,7 +191,7 @@ def lex(src: str, spec: Spec) -> list[Token]:
             m = _HEREDOC.match(src, i)
             if m:
                 term = re.compile(r"^[ \t]*" + re.escape(m.group(2)) + r"[ \t]*$", re.MULTILINE)
-                t = term.search(src, src.find("\n", m.end()) + 1 if "\n" in src[m.end():] else n)
+                t = term.search(src, src.find("\n", m.end()) + 1 if "\n" in src[m.end() :] else n)
                 if not t:
                     raise _Unsure
                 i = t.end()
@@ -208,7 +261,11 @@ def lex(src: str, spec: Spec) -> list[Token]:
                 i = _scan_string(src, i, c, c in spec.multiline_quotes, escapes=not (spec.heredoc and c == "'"))
             prev_sig = c
             continue
-        if spec.regex and c == "/" and (prev_sig in _REGEX_BEFORE or prev_word in ("return", "typeof", "case", "in", "of")):
+        if (
+            spec.regex
+            and c == "/"
+            and (prev_sig in _REGEX_BEFORE or prev_word in ("return", "typeof", "case", "in", "of"))
+        ):
             j, in_class = i + 1, False
             while j < n:
                 d = src[j]
@@ -246,6 +303,7 @@ def lex(src: str, spec: Spec) -> list[Token]:
 
 # ---------------------------------------------------------------- Python
 
+
 def _py_lex(src: str) -> list[Token]:
     """Exact tokens from the ``tokenize`` module; docstrings are module/def/class first strings."""
     try:
@@ -273,7 +331,7 @@ def _py_lex(src: str) -> list[Token]:
             first_stmt = before is None or (before.type == tokenize.OP and before.string == ":")
             alone = after is not None and after.type in (tokenize.NEWLINE, tokenize.ENDMARKER)
             prefix = re.match(r"[A-Za-z]*", t.string).group().lower()
-            if first_stmt and alone and prefix in ("", "r", "u") and t.string[len(prefix):][:3] in ('"""', "'''"):
+            if first_stmt and alone and prefix in ("", "r", "u") and t.string[len(prefix) :][:3] in ('"""', "'''"):
                 spans.append((off(t.start), off(t.end), "doc"))
     out: list[Token] = []
     pos = 0
@@ -291,7 +349,11 @@ def _strip_docstrings(tree: ast.AST) -> str:
     for node in ast.walk(tree):
         if isinstance(node, (ast.Module, ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)) and node.body:
             first = node.body[0]
-            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
+            if (
+                isinstance(first, ast.Expr)
+                and isinstance(first.value, ast.Constant)
+                and isinstance(first.value.value, str)
+            ):
                 first.value.value = ""
     return ast.dump(tree)
 
@@ -312,17 +374,21 @@ _DIRECTIVE = re.compile(
     r"^\s*(?:!|-\*-|type:|noqa|pragma|pylint|pyright|mypy|isort|fmt:|nosec|coding[:=]|vim?:|eslint|jshint|jslint|"
     r"global\s|exported\s|prettier|istanbul|c8\s|@ts-|ts-|tslint|biome-|NOLINT|clang-|region\b|endregion\b|#?region\b|"
     r"SPDX|copyright|\(c\)|©|licen[cs]e|webpack|swiftlint|rubocop|frozen_string_literal|shellcheck|cython|"
-    r"language=|eslint-)", re.IGNORECASE)
+    r"language=|eslint-)",
+    re.IGNORECASE,
+)
 _CODE_START = re.compile(
     r"^\s*(?:def|class|import|from|return|if|elif|else|for|while|try|except|print|const|let|var|function|"
-    r"public|private|static|void|int|float|double|char|struct|fn|func|SELECT|INSERT|UPDATE|DELETE|echo|sudo|cd)\b")
+    r"public|private|static|void|int|float|double|char|struct|fn|func|SELECT|INSERT|UPDATE|DELETE|echo|sudo|cd)\b"
+)
 _CODEY = re.compile(
     r"`[^`]+`|\[\[\s*\d+\s*\]\]|https?://\S+|www\.\S+|"
     r"\S*\w[./\\:]\w\S*|"  # paths, dotted names, module.attr, a::b
     r"\b\w+\([^()\s]*\)|"  # calls: foo(), len(x)
     r"\b\w*_\w*\b|\b[a-z]+[A-Z]\w*\b|\b[A-Z][a-z]+[A-Z]\w*\b|"  # snake_case, camelCase, PascalCase
     r"\b\w*\d\w*\b|\b[A-Z]{2,}s?\b|"  # numbers, ACRONYMS
-    r"\b(?:TODO|FIXME|XXX|HACK|NOTE|BUG|OPTIMIZE|WARNING|SAFETY)\b:?")
+    r"\b(?:TODO|FIXME|XXX|HACK|NOTE|BUG|OPTIMIZE|WARNING|SAFETY)\b:?"
+)
 _FORBIDDEN = re.compile(r"[{}<>=$\\|;@]")
 
 
@@ -341,7 +407,7 @@ def _rewrite_prose(text: str, ctx: _Context) -> str:
     from .language_refiner import LanguageRefiner
 
     lead = text[: len(text) - len(text.lstrip())]
-    trail = text[len(text.rstrip()):]
+    trail = text[len(text.rstrip()) :]
     core = text.strip()
     if not core or _DIRECTIVE.match(core) or _CODE_START.match(core) or core.endswith((":", "{", "(", ",")):
         return text
@@ -356,6 +422,7 @@ def _rewrite_prose(text: str, ctx: _Context) -> str:
     if len(words) < 4 or _FORBIDDEN.search(masked):
         return text
     ctx.counter += 1
+    # One seed per comment; 13 is an arbitrary stride.
     seed = None if ctx.seed is None else ctx.seed + ctx.counter * 13
     out = rule_engine.paraphrase(masked, ctx.strength, seed)["text"]
     out = LanguageRefiner().refine(out, masked, seed).text
@@ -395,21 +462,29 @@ def _rewrite_comment(kind: str, text: str, ctx: _Context) -> str:
             return text
         opener = re.match(r"^(/\*+|<!--|\{-|--\[\[)", text).group()
         closer = re.search(r"(\*+/|-->|-\}|\]\])$", text).group()
-        inner = text[len(opener): len(text) - len(closer)]
+        inner = text[len(opener) : len(text) - len(closer)]
         lines = inner.split("\n")
         new = []
         for line in lines:
             m = re.match(r"^(\s*\*(?!/)\s?)(.*)$", line)
             new.append(m.group(1) + _rewrite_line(m.group(2), ctx) if m else _rewrite_line(line, ctx))
         body = "\n".join(new)
-        bad = ("*/", "/*") if opener.startswith("/*") else ("--",) if opener == "<!--" else ("-}", "{-") if opener == "{-" else ("]]",)
+        bad = (
+            ("*/", "/*")
+            if opener.startswith("/*")
+            else ("--",)
+            if opener == "<!--"
+            else ("-}", "{-")
+            if opener == "{-"
+            else ("]]",)
+        )
         if any(b in body for b in bad):
             return text
         return opener + body + closer
     if kind == "doc":
         prefix = re.match(r"[A-Za-z]*", text).group()
-        quote = text[len(prefix): len(prefix) + 3]
-        inner = text[len(prefix) + 3: -3]
+        quote = text[len(prefix) : len(prefix) + 3]
+        inner = text[len(prefix) + 3 : -3]
         if ">>>" in inner or "\\" in inner:  # doctests run; escapes change meaning
             return text
         body = "\n".join(_rewrite_line(line, ctx) for line in inner.split("\n"))
@@ -420,6 +495,7 @@ def _rewrite_comment(kind: str, text: str, ctx: _Context) -> str:
 
 
 # ---------------------------------------------------------------- public API
+
 
 @dataclass
 class CodeResult:
@@ -462,11 +538,11 @@ def split_fence(block: str) -> tuple[str, str, str]:
     m = re.match(r"^([ \t]{0,3}(?:`{3,}|~{3,})[^\n]*\n)", block)
     if not m:
         return "", block, ""
-    rest = block[m.end():]
+    rest = block[m.end() :]
     c = re.search(r"(\n?[ \t]*(?:`{3,}|~{3,})[ \t]*)$", rest)
     if not c:
         return m.group(1), rest, ""
-    return m.group(1), rest[: c.start()], rest[c.start():]
+    return m.group(1), rest[: c.start()], rest[c.start() :]
 
 
 def rewrite_block(block: str, lang: str, strength: int, seed: int | None = None) -> CodeResult:
