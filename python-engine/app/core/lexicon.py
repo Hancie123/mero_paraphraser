@@ -302,11 +302,6 @@ def _load_extra(path: Path = EXTRA_FILE) -> dict[str, tuple[str, list[str]]]:
 EXTRA_SYNONYMS = _load_extra()
 
 
-def swap_entry(word: str) -> tuple[str, list[str]] | None:
-    """``(part_of_speech, synonyms)`` for a lowercase word: hand-written first, then generated."""
-    return SYNONYMS.get(word) or EXTRA_SYNONYMS.get(word)
-
-
 def suggestions_for(word: str) -> list[str] | None:
     """``synonyms_for`` plus generated synonyms. Only for callers that check the context."""
     found = synonyms_for(word)

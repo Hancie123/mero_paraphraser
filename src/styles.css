@@ -38,8 +38,6 @@
   --warn: #9d5d00;
   --err: #c42b1c;
   --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23fff' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  --info-bg: #f4f4f4;
-  --error-bg: #fde7e9;
   --shadow-card: 0 2px 4px rgb(0 0 0 / 4%);
   --shadow-flyout: 0 8px 16px rgb(0 0 0 / 14%);
   --focus: #000000;
@@ -89,8 +87,6 @@
     --warn: #fce100;
     --err: #ff99a4;
     --check: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.5 8.5l3 3 6-7' fill='none' stroke='%23000' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    --info-bg: rgb(255 255 255 / 3.26%);
-    --error-bg: #442726;
     --shadow-card: 0 2px 4px rgb(0 0 0 / 13%);
     --shadow-flyout: 0 8px 16px rgb(0 0 0 / 26%);
     --focus: #ffffff;
@@ -400,26 +396,6 @@ textarea:focus-visible { outline: none; }
 .btn:disabled { color: var(--text-3); }
 .btn.danger { color: var(--err); }
 .dialog-foot .btn { min-width: 120px; }
-
-/* ---------- InfoBar ---------- */
-.infobar {
-  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
-  margin: 12px 24px 0; padding: 8px 8px 8px 16px; min-height: 48px;
-  border-radius: 4px; border: 1px solid var(--stroke);
-  background: var(--info-bg);
-}
-.infobar.error { background: var(--error-bg); }
-.infobar-icon {
-  flex: none; width: 16px; height: 16px; border-radius: 50%;
-  display: grid; place-items: center;
-  font-size: 11px; font-weight: 700; line-height: 1;
-  color: var(--text-on-accent); background: var(--accent);
-}
-.infobar.error .infobar-icon { background: var(--err); color: #fff; }
-.infobar-text { flex: 1; min-width: 240px; display: flex; flex-wrap: wrap; gap: 4px 12px; }
-.infobar-text strong { font-weight: 600; }
-.infobar-actions { display: flex; gap: 8px; }
-.infobar-close { width: 32px; padding: 0; display: grid; place-items: center; }
 
 /* ---------- ProgressBar ---------- */
 .progress { height: 3px; flex: none; position: relative; overflow: hidden; }

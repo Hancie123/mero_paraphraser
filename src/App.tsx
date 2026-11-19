@@ -2,12 +2,10 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
-  aiCommand,
   engineStatus,
   MAX_CHARS,
   MODES,
   paraphrase,
-  type AiStatus,
   type Mode,
   type Report,
   type Segment,
@@ -52,55 +50,19 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [dialog, setDialog] = useState<DialogKind>(null);
-  const [ai, setAi] = useState<AiStatus | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const output = segments.map((s) => s.text).join("");
-  const aiReady = ai?.state === "ready";
 
   useEffect(() => {
     engineStatus()
       .then((r) => {
         setEngine({ state: "ready", version: r.version });
-        setAi(r.ai);
-        // No model yet (dev, or installed without the "ai" folder): fetch it automatically.
-        if (r.ai.state === "missing") aiCommand("download").then(setAi).catch(() => {});
       })
       .catch((e) => setEngine({ state: "error", message: String(e) }));
   }, []);
-
-  // Keep the AI status fresh while downloading or loading the model.
-  const aiBusy = ai?.state === "downloading" || ai?.state === "verifying" || ai?.server === "starting";
-  useEffect(() => {
-    if (!aiBusy) return;
-    let alive = true;
-    let timer: ReturnType<typeof setTimeout>;
-    const tick = async () => {
-      try {
-        const s = await aiCommand("status");
-        if (alive) setAi(s);
-      } catch {
-        /* engine busy or restarting; try again */
-      }
-      if (alive) timer = setTimeout(tick, 700);
-    };
-    timer = setTimeout(tick, 700);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [aiBusy]);
-
-  // Load the model in the background as soon as it's installed.
-  useEffect(() => {
-    if (aiReady && ai?.server === "stopped") {
-      aiCommand("warm").then(setAi).catch(() => {});
-    }
-  }, [aiReady, ai?.server]);
-
-  const retryDownload = () => aiCommand("download").then(setAi).catch((e) => setError(String(e)));
 
   const run = useCallback(async () => {
     if (!input.trim() || busy) return;
@@ -109,18 +71,17 @@ export default function App() {
     setPicker(null);
     try {
       const seed = Math.floor(Math.random() * 2 ** 31);
-      const result = await paraphrase(input, mode, strength, seed, aiReady ? "ai" : "basic");
+      const result = await paraphrase(input, mode, strength, seed);
       setSegments(result.segments);
       setStats(result.stats);
       setReport(result.report ?? null);
       setEngine((e) => (e.state === "ready" ? e : { state: "ready", version: "" }));
-      if (result.engine === "ai") setAi((a) => (a ? { ...a, server: "running" } : a));
     } catch (e) {
       setError(String(e));
     } finally {
       setBusy(false);
     }
-  }, [input, mode, strength, busy, aiReady]);
+  }, [input, mode, strength, busy]);
 
   /* ---------- commands ---------- */
 
@@ -353,14 +314,8 @@ export default function App() {
     <div className="shell">
       <div className="menubar-row">
         <MenuBar menus={menus} />
-        {engine.state !== "ready" ? <EngineBadge engine={engine} /> : <AiBadge ai={ai} />}
+        <EngineBadge engine={engine} />
       </div>
-
-      {ai?.state === "error" && (
-        <InfoBar severity="error" title="The AI model download didn't finish" message={ai.message}>
-          <button className="btn" onClick={() => void retryDownload()}>Try again</button>
-        </InfoBar>
-      )}
 
       <div className="app">
         <section className="controls">
@@ -415,9 +370,7 @@ export default function App() {
               <span>{inputWords} words · {input.length.toLocaleString()}/{MAX_CHARS.toLocaleString()} chars</span>
               <button className="primary" onClick={run} disabled={!canRun}>
                 {busy
-                  ? aiReady && ai?.server !== "running"
-                    ? "Loading AI model…"
-                    : "Paraphrasing…"
+                  ? "Paraphrasing…"
                   : segments.length
                     ? "Rephrase"
                     : "Paraphrase"}
@@ -632,55 +585,6 @@ function ReviewPanel({ report }: { report: Report }) {
       </section>
     </div>
   );
-}
-
-function InfoBar({
-  title,
-  message,
-  severity = "info",
-  onClose,
-  children,
-}: {
-  title: string;
-  message: string;
-  severity?: "info" | "error";
-  onClose?: () => void;
-  children?: ReactNode;
-}) {
-  return (
-    <div className={`infobar ${severity}`} role={severity === "error" ? "alert" : "status"}>
-      <span className="infobar-icon" aria-hidden>
-        {severity === "error" ? "!" : "i"}
-      </span>
-      <div className="infobar-text">
-        <strong>{title}</strong>
-        <span>{message}</span>
-      </div>
-      <div className="infobar-actions">{children}</div>
-      {onClose && (
-        <button className="infobar-close ghost" onClick={onClose} aria-label="Close">
-          <svg viewBox="0 0 16 16" width="12" height="12" aria-hidden>
-            <path d="M3.5 3.5l9 9M12.5 3.5l-9 9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
-        </button>
-      )}
-    </div>
-  );
-}
-
-/** Shows AI download or loading progress; nothing when idle. */
-function AiBadge({ ai }: { ai: AiStatus | null }) {
-  if (!ai) return null;
-  let text: string | null = null;
-  if (ai.state === "downloading") {
-    text = `Downloading AI model · ${Math.floor((100 * ai.done_bytes) / (ai.size_bytes || 1))}%`;
-  } else if (ai.state === "verifying") {
-    text = "Checking AI model…";
-  } else if (ai.state === "ready" && ai.server === "starting") {
-    text = "Loading AI model…";
-  }
-  if (!text) return null;
-  return <span className="badge">{text}</span>;
 }
 
 /** Only shown while the engine is starting or if it failed. */

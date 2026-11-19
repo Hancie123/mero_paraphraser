@@ -6,11 +6,8 @@ from dataclasses import asdict, dataclass, field
 
 from ..core.config import MAX_CHARS, MODE_ALIASES, MODES
 
-ENGINES = ("auto", "ai", "basic")
-
-
 class ParaphraseError(ValueError):
-    """Invalid input or a failure the user should see (bad mode, text too long, model error...)."""
+    """Invalid input or a failure the user should see (bad mode, text too long...)."""
 
 
 @dataclass
@@ -19,7 +16,6 @@ class ParaphraseRequest:
     mode: str = "standard"
     strength: int = 50
     seed: int | None = None
-    engine: str = "basic"  # "auto" | "ai" | "basic"
 
     @classmethod
     def from_dict(cls, d: dict) -> "ParaphraseRequest":
@@ -31,15 +27,12 @@ class ParaphraseRequest:
         mode = MODE_ALIASES.get(d.get("mode", "standard"), d.get("mode", "standard"))
         if mode not in MODES:
             raise ParaphraseError(f"unknown mode {mode!r}; choose one of {', '.join(MODES)}")
-        engine = d.get("engine", "basic")
-        if engine not in ENGINES:
-            raise ParaphraseError(f"unknown engine {engine!r}; choose one of {', '.join(ENGINES)}")
         try:
             strength = max(0, min(100, int(d.get("strength", 50))))
         except (TypeError, ValueError):
             raise ParaphraseError("strength must be a number from 0 to 100") from None
         seed = d.get("seed")
-        return cls(text, mode, strength, None if seed is None else int(seed), engine)
+        return cls(text, mode, strength, None if seed is None else int(seed))
 
 
 @dataclass
@@ -106,14 +99,11 @@ class ChunkResult:
     phrases: int = 0  # Layer 5 stock-phrase replacements
     issues: list[str] = field(default_factory=list)
     critical: bool = False
-    meaning_score: int | None = None  # 1-5 from the model's meaning check
     kept_original: bool = False
     # human-like output (humanizer.py)
     drafts: int = 0  # drafts written per attempt
     human_score: float | None = None  # higher reads more human
     restructured: int = 0  # Layer 5 edits against AI-typical structure
-    swaps: int = 0  # predictable words swapped for synonyms
-    sentence_rewrites: int = 0  # flat sentences rewritten
     patterns: list[str] = field(default_factory=list)  # AI-typical structures still present
 
 

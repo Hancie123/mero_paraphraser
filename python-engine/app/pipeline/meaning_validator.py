@@ -1,37 +1,18 @@
-"""Layer 6: meaning validation - semantic similarity and factual consistency.
+"""Layer 6: meaning validation - factual consistency.
 
-Two checks per part:
-1. Facts (always): numbers, names, negations, hedges and length stay consistent
-   with what Layer 3 extracted.
-2. Meaning (with the AI model): the model compares the rewrite with the original
-   and scores it 1-5. It only runs when the fact checks pass, to save time.
-A part that fails is rewritten once more with the problems as feedback.
+Checks each part's rewrite against what Layer 3 extracted: numbers, names,
+negations, hedges and length must stay consistent. A part that fails is
+rewritten once more.
 """
 
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass, field
 
 from ..core.config import MODES
-from ..core.model_manager import ModelManager
-from ..schemas.paraphrase import ChunkResult, Facts, ParaphraseError
+from ..schemas.paraphrase import ChunkResult, Facts
 from ..utils.text_utils import word_count
-from .rewriting_engine import prompt
 from .semantic_analyzer import HEDGE_RE, NEGATION_RE, NUMBER_WORDS, numbers_in
-
-PASS_SCORE = 3  # meaning scores at or below this trigger a retry
-
-
-@dataclass
-class Check:
-    issues: list[str] = field(default_factory=list)
-    score: int | None = None
-
-    @property
-    def ok(self) -> bool:
-        return not self.issues
 
 
 def check_facts(source: str, output: str, facts: Facts, mode: str) -> list[str]:
@@ -62,63 +43,13 @@ def check_facts(source: str, output: str, facts: Facts, mode: str) -> list[str]:
     return issues
 
 
-def parse_judgement(reply: str) -> tuple[int | None, str]:
-    """Returns (score 1-5, short description of the problems)."""
-    m = re.search(r"\{.*\}", reply, re.DOTALL)
-    try:
-        data = json.loads(m.group() if m else reply)
-    except ValueError:
-        m = re.search(r"\b([1-5])\b", reply)
-        return (int(m.group(1)) if m else None), ""
-    problems = []
-    for key, label in (("added", "Added"), ("missing", "Left out"), ("changed", "Changed")):
-        items = [str(i).strip() for i in data.get(key) or [] if str(i).strip()]
-        if items:
-            problems.append(f"{label}: {'; '.join(items[:2])}.")
-    try:
-        score = max(1, min(5, int(data.get("score"))))
-    except (TypeError, ValueError):
-        score = None
-    # Listed problems outweigh a generous score.
-    if problems and (score is None or score > PASS_SCORE):
-        score = PASS_SCORE
-    return score, " ".join(problems)
-
-
 class MeaningValidator:
-    def __init__(self, model_manager: ModelManager | None):
-        self.models = model_manager  # None: fact checks only (rule-based engine)
-
-    def check(self, chunk: ChunkResult, facts: Facts, mode: str) -> Check:
-        result = Check(check_facts(chunk.source, chunk.output, facts, mode))
-        if result.ok and self.models is not None and chunk.output.strip() != chunk.source.strip():
-            result.score, issue = self.judge(chunk.source, chunk.output)
-            if result.score is not None and result.score <= PASS_SCORE:
-                result.issues.append(issue or "The meaning changed.")
-        return result
-
-    def judge(self, original: str, rewrite: str) -> tuple[int | None, str]:
-        try:
-            reply = self.models.complete(
-                prompt("judge.txt"),
-                f"ORIGINAL:\n{original.strip()}\n\nREWRITE:\n{rewrite.strip()}",
-                temperature=0.0,
-                max_tokens=200,
-                seed=0,
-                json_mode=True,
-            )
-        except ParaphraseError:
-            return None, ""
-        return parse_judgement(reply)
-
     @staticmethod
     def summary(chunks: list[ChunkResult]) -> dict:
         parts = [c for c in chunks if c.rewrite]
-        scores = [c.meaning_score for c in parts if c.meaning_score is not None]
         return {
             "parts": len(parts),
             "passed": sum(1 for c in parts if not c.issues),
-            "average_score": round(sum(scores) / len(scores), 1) if scores else None,
             "retried": sum(1 for c in parts if c.attempts > 1),
             "kept_original": sum(1 for c in parts if c.kept_original),
             "issues": [f"Part {c.index}: {i}" for c in parts for i in c.issues],

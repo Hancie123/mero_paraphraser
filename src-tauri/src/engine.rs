@@ -126,8 +126,8 @@ impl EngineProcess {
 }
 
 impl Drop for EngineProcess {
-    /// Closes stdin so the engine can shut down its AI model cleanly, then
-    /// kills it if it hasn't exited after a short grace period.
+    /// Closes stdin so the engine can exit cleanly, then kills it if it
+    /// hasn't exited after a short grace period.
     fn drop(&mut self) {
         drop(self.stdin.take());
         let deadline = Instant::now() + Duration::from_secs(3);

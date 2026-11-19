@@ -52,8 +52,7 @@
     ],
     "windows": {
       "nsis": {
-        "installMode": "currentUser",
-        "installerHooks": "windows/hooks.nsh"
+        "installMode": "currentUser"
       }
     }
   }

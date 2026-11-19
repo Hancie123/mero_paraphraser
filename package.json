@@ -12,8 +12,7 @@
     "build:engine": "node scripts/build-engine.mjs",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "node scripts/build-engine.mjs && tauri build --config src-tauri/tauri.bundle.json && node scripts/package-release.mjs",
-    "package:release": "node scripts/package-release.mjs"
+    "tauri:build": "node scripts/build-engine.mjs && tauri build --config src-tauri/tauri.bundle.json"
   },
   "dependencies": {
     "@tauri-apps/api": "^2",

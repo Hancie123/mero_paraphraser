@@ -22,28 +22,12 @@ async fn paraphrase(
     mode: String,
     strength: u8,
     seed: Option<u64>,
-    engine_kind: Option<String>,
 ) -> Result<Value, String> {
-    let kind = engine_kind.unwrap_or_else(|| "auto".into());
     call(
         &engine,
-        json!({ "cmd": "paraphrase", "text": text, "mode": mode, "strength": strength, "seed": seed, "engine": kind }),
+        json!({ "cmd": "paraphrase", "text": text, "mode": mode, "strength": strength, "seed": seed }),
     )
     .await
-}
-
-/// Runs one of the engine's AI-model commands (status, download, cancel, remove, warm).
-#[tauri::command]
-async fn ai_command(engine: State<'_, SharedEngine>, action: String) -> Result<Value, String> {
-    let cmd = match action.as_str() {
-        "status" => "ai_status",
-        "download" => "ai_download",
-        "cancel" => "ai_cancel",
-        "remove" => "ai_remove",
-        "warm" => "ai_warm",
-        other => return Err(format!("unknown AI action {other:?}")),
-    };
-    call(&engine, json!({ "cmd": cmd })).await
 }
 
 #[tauri::command]
@@ -63,7 +47,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(engine)
-        .invoke_handler(tauri::generate_handler![paraphrase, engine_status, ai_command])
+        .invoke_handler(tauri::generate_handler![paraphrase, engine_status])
         .run(tauri::generate_context!())
         .expect("error while running Mero Paraphraser");
 }

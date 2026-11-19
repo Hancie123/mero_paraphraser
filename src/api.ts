@@ -49,27 +49,10 @@ export interface ParaphraseResult {
   text: string;
   segments: Segment[];
   stats: Stats;
-  engine: "ai" | "basic";
   report: Report;
 }
 
-/** "auto" uses the AI model when it is installed, otherwise the basic engine. */
-export type EngineKind = "auto" | "ai" | "basic";
+export const paraphrase = (text: string, mode: Mode, strength: number, seed: number) =>
+  invoke<ParaphraseResult>("paraphrase", { text, mode, strength, seed });
 
-export interface AiStatus {
-  state: "missing" | "downloading" | "verifying" | "ready" | "error";
-  model: string;
-  size_bytes: number;
-  done_bytes: number;
-  message: string;
-  server: "stopped" | "starting" | "running" | "error";
-  folder: string;
-}
-
-export const paraphrase = (text: string, mode: Mode, strength: number, seed: number, engineKind: EngineKind) =>
-  invoke<ParaphraseResult>("paraphrase", { text, mode, strength, seed, engineKind });
-
-export const engineStatus = () => invoke<{ version: string; ai: AiStatus }>("engine_status");
-
-export const aiCommand = (action: "status" | "download" | "cancel" | "remove" | "warm") =>
-  invoke<AiStatus>("ai_command", { action });
+export const engineStatus = () => invoke<{ version: string }>("engine_status");
