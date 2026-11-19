@@ -49,4 +49,23 @@ export interface ParaphraseResult {
 export const paraphrase = (text: string, mode: Mode, strength: number, seed: number) =>
   invoke<ParaphraseResult>("paraphrase", { text, mode, strength, seed });
 
+export const exportDocx = (text: string) => invoke<{ data: string }>("export_docx", { text });
+export const readDocx = (data: string) => invoke<{ text: string }>("read_docx", { data });
+export const cleanDocx = (data: string) => invoke<{ data: string; removed: string[] }>("clean_docx", { data });
+
+/** Base64 helpers for passing .docx files to the engine. */
+export function toBase64(buf: ArrayBuffer): string {
+  const bytes = new Uint8Array(buf);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+export function fromBase64(data: string): Uint8Array {
+  const bin = atob(data);
+  const out = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+  return out;
+}
+
 export const engineStatus = () => invoke<{ version: string }>("engine_status");

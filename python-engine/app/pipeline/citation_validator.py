@@ -36,7 +36,7 @@ def check_tokens(source: str, output: str) -> tuple[list[str], bool]:
 class CitationValidator:
     def validate(self, processed: ProcessedInput, final_text: str) -> dict:
         body = final_text[: len(final_text) - len(processed.references)] if processed.references else final_text
-        missing = [p for p in processed.protected if p.text not in body]
+        missing = [p for p in processed.protected if p.output not in body]
         references_ok = not processed.references or final_text.endswith(processed.references)
         return {
             "citations": processed.count("citation"),
@@ -44,6 +44,7 @@ class CitationValidator:
             "links": processed.count("url") + processed.count("doi") + processed.count("email"),
             "references": bool(processed.references),
             "references_ok": references_ok,
-            "missing": [p.text for p in missing],
+            "missing": [p.text[:80] for p in missing],
+            "blocks": {k: processed.count(k) for k in ("codeblock", "data", "math", "locked", "heading")},
             "ok": not missing and references_ok,
         }

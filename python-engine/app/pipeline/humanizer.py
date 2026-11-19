@@ -37,7 +37,6 @@ _NOT_JUST_RE = re.compile(
     r"[^.!?;]{1,60}[,;]\s*(?:it's|it is|they're|they are|but)\b", re.IGNORECASE)
 _TRIPLET_RE = re.compile(r"\b[\w-]+(?: [\w-]+){0,2}, [\w-]+(?: [\w-]+){0,2}, (?:and|or) [\w-]+"
                          r"|\b[\w-]+, [\w-]+ (?:and|or) [\w-]+\b")
-_EM_DASH_RE = re.compile(r"\s*—\s*")
 _PARTICIPLE_RE = re.compile(r"^[A-Z][a-z]{2,}ing\b[^,.]{0,60},")
 _TRANSITIONS = ("however", "additionally", "furthermore", "moreover", "consequently", "therefore",
                 "thus", "notably", "importantly", "indeed", "similarly", "in addition")
@@ -258,20 +257,7 @@ def restructure(text: str, source: str, rng: random.Random) -> tuple[str, int]:
     edits += n
     text = _OPENER_RE.sub(opener, text)
 
-    if "—" not in source:
-        # Em dashes are a well-known AI tell. Half the time one may stay per part; used that
-        # sparingly, it reads human.
-        kept = 0 if rng.random() < 0.5 else 1
-
-        def dash(m: re.Match) -> str:
-            nonlocal kept, edits
-            if kept == 0:
-                kept = 1
-                return "—"
-            edits += 1
-            return ", "
-
-        text = _EM_DASH_RE.sub(dash, text)
+    # Em dashes are replaced by language_refiner.clean_dashes.
 
     if "not only" not in src:
         text, n = _NOT_ONLY_RE.subn(r"\1 and", text)

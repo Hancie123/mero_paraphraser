@@ -30,6 +30,24 @@ async fn paraphrase(
     .await
 }
 
+/// Builds a .docx of `text` with no document properties (base64).
+#[tauri::command]
+async fn export_docx(engine: State<'_, SharedEngine>, text: String) -> Result<Value, String> {
+    call(&engine, json!({ "cmd": "export_docx", "text": text })).await
+}
+
+/// Extracts the text of a base64 .docx.
+#[tauri::command]
+async fn read_docx(engine: State<'_, SharedEngine>, data: String) -> Result<Value, String> {
+    call(&engine, json!({ "cmd": "read_docx", "data": data })).await
+}
+
+/// Removes personal metadata (authors, dates, revision IDs...) from a base64 .docx.
+#[tauri::command]
+async fn clean_docx(engine: State<'_, SharedEngine>, data: String) -> Result<Value, String> {
+    call(&engine, json!({ "cmd": "clean_docx", "data": data })).await
+}
+
 #[tauri::command]
 async fn engine_status(engine: State<'_, SharedEngine>) -> Result<Value, String> {
     call(&engine, json!({ "cmd": "ping" })).await
@@ -47,7 +65,7 @@ pub fn run() {
 
     tauri::Builder::default()
         .manage(engine)
-        .invoke_handler(tauri::generate_handler![paraphrase, engine_status])
+        .invoke_handler(tauri::generate_handler![paraphrase, engine_status, export_docx, read_docx, clean_docx])
         .run(tauri::generate_context!())
         .expect("error while running Mero Paraphraser");
 }

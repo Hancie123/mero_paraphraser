@@ -327,6 +327,8 @@ textarea:focus-visible { outline: none; }
 .placeholder { margin: 0; color: var(--text-2); }
 .error { margin: 0; color: var(--err); }
 
+.notice { margin: 0; color: var(--text-2); }
+
 /* changed words */
 .chg {
   border: 0; background: transparent; padding: 0; margin: 0;

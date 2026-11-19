@@ -51,10 +51,10 @@ class RestructureTests(unittest.TestCase):
         outs = {restructure("We do not know yet.", "x", random.Random(s))[0] for s in range(10)}
         self.assertIn("We don't know yet.", outs)
 
-    def test_em_dash_mostly_removed(self):
-        outs = {restructure("It failed—badly. Then—later—it worked.", "x", random.Random(s))[0] for s in range(10)}
-        self.assertTrue(all(o.count("—") <= 1 for o in outs), outs)
-        self.assertIn("It failed, badly. Then, later, it worked.", outs)
+    def test_em_dashes_removed(self):
+        from app.pipeline.language_refiner import LanguageRefiner
+        out = LanguageRefiner().refine("It failed—badly. Then—later—it worked.", "It failed—badly.", 1).text
+        self.assertEqual(out, "It failed, badly. Then, later, it worked.")
 
     def test_transition_swap_keeps_meaning_and_names(self):
         outs = {restructure("However, Smith left.", "x", random.Random(s))[0] for s in range(20)}

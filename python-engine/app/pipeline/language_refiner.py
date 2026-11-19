@@ -1,7 +1,9 @@
 """Layer 5: language refinement - grammar, vocabulary, sentence flow and readability.
 
 Deterministic clean-up after the rewrite: spacing and punctuation, doubled
-words, sentence capitals, "a"/"an", and stock AI phrases the author didn't use.
+words, sentence capitals, "a"/"an", stock filler phrases the author didn't
+use, language-model wording ("delve into", "plays a pivotal role") wherever
+it appears, and em dashes (clean_dashes).
 With ``humanize`` it also breaks up structures AI detectors flag (see
 humanizer.restructure): summary openers, "not only... but also", sentences of
 even length, and missing contractions.
@@ -24,34 +26,11 @@ STOCK_PHRASES: dict[str, str] = {
     "it's important to note that ": "",
     "it is worth noting that ": "",
     "it's worth noting that ": "",
-    "delve into": "look at",
-    "delves into": "looks at",
-    "delved into": "looked at",
-    "delving into": "looking at",
-    "a testament to": "a sign of",
-    "plays a crucial role in": "is central to",
-    "play a crucial role in": "are central to",
-    "navigate the complexities of": "deal with",
-    "a rich tapestry of": "a wide range of",
-    "seamlessly": "smoothly",
-    "seamless": "smooth",
-    "in the realm of": "in",
-    "a myriad of": "many",
-    "a plethora of": "many",
-    "plays a pivotal role in": "is central to",
-    "play a pivotal role in": "are central to",
-    "plays a vital role in": "is central to",
-    "play a vital role in": "are central to",
-    "serves as a testament to": "shows",
-    "stands as a testament to": "shows",
     "due to the fact that": "because",
     "in order to": "to",
     "it is essential to note that ": "",
     "it is crucial to note that ": "",
     "in today's digital age, ": "",
-    "in the ever-evolving landscape of": "in",
-    "ever-evolving": "changing",
-    "game-changer": "big change",
     # filler that only restates or announces (removed)
     "as mentioned earlier, ": "",
     "as previously mentioned, ": "",
@@ -62,8 +41,6 @@ STOCK_PHRASES: dict[str, str] = {
     "it is worth mentioning that ": "",
     "it's worth mentioning that ": "",
     "it is interesting to note that ": "",
-    "unlock the potential of": "make the most of",
-    "harness the power of": "use",
 }
 # AI-favoured verbs and adjectives -> plain words. Unlike STOCK_PHRASES these apply even when the
 # source uses them: swapping "utilize" for "use" is good paraphrasing. (pattern, replacement, skip in academic)
@@ -72,7 +49,6 @@ PLAIN_WORDS: list[tuple[str, str, bool]] = [
     (r"utilizes", "uses", False),
     (r"utilized", "used", False),
     (r"utilizing", "using", False),
-    (r"delve into|delves into", "look at", False),
     (r"foster", "encourage", False),
     (r"fosters", "encourages", False),
     (r"fostered", "encouraged", False),
@@ -114,6 +90,148 @@ def _plain_words(text: str, academic: bool) -> tuple[str, int]:
     return text, count
 
 
+# Wording that marks text as written by a language model. Unlike STOCK_PHRASES these are
+# replaced even when the source used them. Applied in order, longer phrases first.
+# (pattern, replacement, skip in academic text). "\1" keeps the matched verb form.
+SIGNATURES: list[tuple[str, str, bool]] = [
+    (r"(play|plays|played|playing) an? (?:pivotal|crucial|vital|critical|key|instrumental|integral|significant) role",
+     r"\1 a major part", False),
+    (r"an? (?:pivotal|crucial|vital) role", "a central role", False),
+    (r"delve deeper into", "look more closely at", False),
+    (r"delves deeper into", "looks more closely at", False),
+    (r"delve into", "look at", False),
+    (r"delves into", "looks at", False),
+    (r"delved into", "looked at", False),
+    (r"delving into", "looking at", False),
+    (r"delve", "dig", False),
+    (r"delves", "digs", False),
+    (r"delved", "dug", False),
+    (r"delving", "digging", False),
+    (r"(?:take|taking|took) a deep dive into", "look closely at", False),
+    (r"a deep dive into", "a close look at", False),
+    (r"(?:is|are|was|were|stands as|stand as|serves as|serve as) a testament to", "shows", False),
+    (r"a testament to", "a sign of", False),
+    (r"a (?:rich|vibrant|complex) tapestry of", "a wide mix of", False),
+    (r"the tapestry of", "the mix of", False),
+    (r"tapestry", "mix", False),
+    (r"navigat(?:e|es) the (?:complexities|intricacies) of", "deal with", False),
+    (r"navigating the (?:complexities|intricacies) of", "dealing with", False),
+    (r"in today's (?:fast-paced|digital|modern|ever-changing|rapidly changing|interconnected) (?:world|age|era|landscape|society),\s*", "", False),
+    (r"in the (?:ever-evolving|ever-changing|rapidly evolving) (?:landscape|world|field|realm) of", "in", False),
+    (r"ever-evolving", "changing", False),
+    (r"(?:with)?in the realm of", "in", False),
+    (r"a (?:myriad|plethora) of", "many", False),
+    (r"myriad", "many", False),
+    (r"(?:harness|harnessing|harnesses) the (?:full )?power of", "use", False),
+    (r"unlock(?:s|ing)? the (?:full )?potential of", "make the most of", False),
+    (r"game-changer", "big change", False),
+    (r"game-changing", "major", False),
+    (r"underscores", "highlights", False),
+    (r"underscored", "highlighted", False),
+    (r"underscoring", "highlighting", False),
+    (r"underscore", "highlight", False),
+    (r"showcases", "shows", False),
+    (r"showcased", "showed", False),
+    (r"showcasing", "showing", False),
+    (r"showcase", "show", False),
+    (r"embarks on", "starts", False),
+    (r"embarked on", "started", False),
+    (r"embarking on", "starting", False),
+    (r"embark on", "start", False),
+    (r"seamlessly", "smoothly", False),
+    (r"seamless", "smooth", False),
+    (r"meticulously", "carefully", False),
+    (r"meticulous", "careful", False),
+    (r"intricacies", "details", False),
+    (r"intricate", "complex", False),
+    (r"multifaceted", "complex", False),
+    (r"pivotal", "key", False),
+    (r"crucial", "important", False),
+    (r"unwavering", "steady", False),
+    (r"commendable", "admirable", False),
+    (r"noteworthy", "notable", False),
+    (r"invaluable", "very useful", False),
+    (r"bustling", "busy", False),
+    (r"vibrant", "lively", True),
+    (r"transformative", "far-reaching", False),
+    (r"holistic", "overall", True),
+    (r"endeavors|endeavours", "efforts", False),
+    (r"endeavor|endeavour", "effort", True),
+]
+_SIGNATURE_RES = [(re.compile(r"\b" + pat + r"\b", re.IGNORECASE), repl, skip) for pat, repl, skip in SIGNATURES]
+
+
+def _signatures(text: str, academic: bool) -> tuple[str, int]:
+    count = 0
+    for pattern, repl, skip_academic in _SIGNATURE_RES:
+        if skip_academic and academic:
+            continue
+
+        def sub(m: re.Match) -> str:
+            nonlocal count
+            new = m.expand(repl)
+            if new.lower() == m.group().lower():
+                return m.group()
+            count += 1
+            if not new:
+                return ""
+            return new[:1].upper() + new[1:] if m.group()[:1].isupper() else new
+
+        text = pattern.sub(sub, text)
+    return text, count
+
+
+# ---------------------------------------------------------------- em dashes
+
+# An em dash, a spaced en dash or a spaced double hyphen used as a dash. Number ranges
+# ("2010–2020", "pp. 4–7") have no spaces and are left alone.
+_DASH = r"(?:\s*—\s*|\s+–\s+|\s+--\s+)"
+_PAIR_RE = re.compile(_DASH + r"([^—–.!?\n]{1,120}?)" + _DASH)
+_SINGLE_RE = re.compile(_DASH)
+_SUBJECT = re.compile(r"(?:I|we|you|he|she|it|they|this|that|these|those|there|nobody|no one|everyone|"
+                      r"someone|people|nothing|everything)\b", re.IGNORECASE)
+
+
+def clean_dashes(text: str) -> tuple[str, int]:
+    """Replace em dashes with the punctuation a person would usually type.
+
+    A pair around a short aside becomes commas (parentheses if the aside has a comma);
+    a single dash becomes a colon before a short list, a full stop before a new
+    clause, and a comma otherwise.
+    """
+    count = 0
+
+    def pair(m: re.Match) -> str:
+        nonlocal count
+        aside = m.group(1).strip()
+        if len(aside.split()) > 15:
+            return m.group()
+        count += 1
+        return f" ({aside}) " if "," in aside else f", {aside}, "
+
+    text = _PAIR_RE.sub(pair, text)
+
+    def single(m: re.Match) -> str:
+        nonlocal count
+        right = re.match(r"[^.!?\n]*", m.string[m.end():]).group()
+        before = m.string[: m.start()].rstrip()
+        count += 1
+        if not right.strip() or not before or before[-1] in ".!?\n":
+            return " " if before and right.strip() else ""
+        n_right = len(right.split())
+        if ("," in right or " and " in right) and n_right <= 14 and not _SUBJECT.match(right):
+            return ": "
+        if _SUBJECT.match(right) and n_right >= 3:
+            return "\x00"  # a full stop; the next word is capitalised below
+        return ", "
+
+    text = _SINGLE_RE.sub(single, text)
+    text = re.sub("\x00" r"(\W*)(\w)", lambda m: ". " + m.group(1) + m.group(2).upper(), text).replace("\x00", ". ")
+    text = re.sub(r"\( ", "(", re.sub(r" \)", ")", text)) if count else text
+    text = re.sub(r",\s*([.!?;:])", r"\1", text)  # "aside, ." at a sentence end
+    return text, count
+
+
 _KEEP_DOUBLES = {"had", "that", "is", "do", "very"}
 _ABBREV_BEFORE = re.compile(r"\b(?:e\.g|i\.e|etc|al|vs|cf|approx|fig|no|vol|pp|p)\.$", re.IGNORECASE)
 
@@ -124,6 +242,7 @@ class Refined:
     fixes: int  # spacing, punctuation and grammar corrections
     phrases: int  # stock phrases replaced
     restructured: int = 0  # edits against AI-typical structure (summary openers, even lengths...)
+    dashes: int = 0  # em dashes replaced
 
 
 def _replace_phrases(text: str, source: str) -> tuple[str, int]:
@@ -180,8 +299,10 @@ class LanguageRefiner:
             text = re.sub(pattern, wrapped, current, flags=flags)
 
         text, phrases = _replace_phrases(text, source)
+        text, sig = _signatures(text, academic)
         text, plain = _plain_words(text, academic)
-        phrases += plain
+        phrases += plain + sig
+        text, dashes = clean_dashes(text)
         if "  " not in source:
             apply(r"(?<=\S) {2,}(?=\S)", " ")
         apply(r" +([,.;:!?])(?=\s|$)", r"\1")  # no space before punctuation
@@ -199,4 +320,4 @@ class LanguageRefiner:
 
         if not source.lstrip()[:1].islower():  # some writers never capitalise; respect that
             apply(r"(^|(?<=[.!?])\s+)([a-z])", capital)
-        return Refined(text, fixes, phrases, restructured)
+        return Refined(text, fixes, phrases, restructured, dashes)

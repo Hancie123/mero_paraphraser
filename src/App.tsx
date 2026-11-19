@@ -2,8 +2,13 @@ import { useCallback, useEffect, useRef, useState, type CSSProperties, type Reac
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import {
+  cleanDocx,
   engineStatus,
+  exportDocx,
+  fromBase64,
   MAX_CHARS,
+  readDocx,
+  toBase64,
   MODES,
   paraphrase,
   type Mode,
@@ -25,7 +30,7 @@ const APP_VERSION = "0.1.0";
 const SHORTCUTS: [string, string][] = [
   ["Paraphrase", "Ctrl+Enter"],
   ["New", "Ctrl+N"],
-  ["Open text file", "Ctrl+O"],
+  ["Open text or Word file", "Ctrl+O"],
   ["Save result", "Ctrl+S"],
   ["Copy result", "Ctrl+Shift+C"],
   ["Zoom in / out", "Ctrl+= / Ctrl+-"],
@@ -44,6 +49,7 @@ export default function App() {
   const [view, setView] = useState<"text" | "review">("text");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [engine, setEngine] = useState<EngineState>({ state: "starting" });
   const [highlight, setHighlight] = useState(true);
   const [picker, setPicker] = useState<Picker | null>(null);
@@ -53,6 +59,7 @@ export default function App() {
   const pickerRef = useRef<HTMLDivElement>(null);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const cleanRef = useRef<HTMLInputElement>(null);
 
   const output = segments.map((s) => s.text).join("");
 
@@ -68,6 +75,7 @@ export default function App() {
     if (!input.trim() || busy) return;
     setBusy(true);
     setError(null);
+    setNotice(null);
     setPicker(null);
     try {
       const seed = Math.floor(Math.random() * 2 ** 31);
@@ -98,13 +106,53 @@ export default function App() {
   const onFileChosen = async (file: File | undefined) => {
     if (!file) return;
     try {
-      const text = await file.text();
+      const text = file.name.toLowerCase().endsWith(".docx")
+        ? (await readDocx(toBase64(await file.arrayBuffer()))).text
+        : await file.text();
+      setNotice(null);
       setInput(text.slice(0, MAX_CHARS));
       setSegments([]);
       setStats(null);      setReport(null);      setView("text");
       if (text.length > MAX_CHARS) setError(`The file was cut to ${MAX_CHARS.toLocaleString()} characters.`);
-    } catch {
-      setError("That file could not be read.");
+    } catch (e) {
+      setError(typeof e === "string" ? `That file could not be read: ${e}` : "That file could not be read.");
+    }
+  };
+
+  /** Saves bytes with the system save dialog (or a download when it isn't available). */
+  const saveBytes = async (bytes: Uint8Array, name: string) => {
+    const picker = (window as unknown as { showSaveFilePicker?: (o: object) => Promise<FileSystemFileHandle> })
+      .showSaveFilePicker;
+    const blob = new Blob([bytes as BlobPart], {
+      type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
+    if (picker) {
+      const handle = await picker({
+        suggestedName: name,
+        types: [{ description: "Word document", accept: { [blob.type]: [".docx"] } }],
+      });
+      const w = await handle.createWritable();
+      await w.write(blob);
+      await w.close();
+    } else {
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    }
+  };
+
+  /** File > Remove personal info from a Word file: cleans a .docx and saves a copy. */
+  const onCleanChosen = async (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    try {
+      const result = await cleanDocx(toBase64(await file.arrayBuffer()));
+      await saveBytes(fromBase64(result.data), file.name.replace(/\.docx$/i, "") + " (clean).docx");
+      setNotice(`${file.name}: ${result.removed.join(" ")}`);
+    } catch (e) {
+      if ((e as DOMException)?.name !== "AbortError") setError(`The document could not be cleaned: ${String(e)}`);
     }
   };
 
@@ -116,10 +164,17 @@ export default function App() {
       if (picker) {
         const handle = await picker({
           suggestedName: "paraphrased.txt",
-          types: [{ description: "Text file", accept: { "text/plain": [".txt"] } }],
+          types: [
+            { description: "Text file", accept: { "text/plain": [".txt"] } },
+            {
+              description: "Word document (no personal metadata)",
+              accept: { "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"] },
+            },
+          ],
         });
         const w = await handle.createWritable();
-        await w.write(output);
+        if (handle.name.toLowerCase().endsWith(".docx")) await w.write(fromBase64((await exportDocx(output)).data) as BlobPart);
+        else await w.write(output);
         await w.close();
       } else {
         const a = document.createElement("a");
@@ -254,8 +309,10 @@ export default function App() {
       key: "F",
       items: [
         { label: "New", shortcut: "Ctrl+N", action: newDoc },
-        { label: "Open text file…", shortcut: "Ctrl+O", action: openFile },
+        { label: "Open text or Word file…", shortcut: "Ctrl+O", action: openFile },
         { label: "Save result as…", shortcut: "Ctrl+S", action: () => void saveResult(), disabled: !output },
+        { separator: true },
+        { label: "Remove personal info from a Word file…", action: () => cleanRef.current?.click() },
         { separator: true },
         { label: "Exit", shortcut: "Alt+F4", action: exit },
       ],
@@ -411,6 +468,8 @@ export default function App() {
             <div className={busy ? "output busy" : "output"} aria-live="polite">
               {error ? (
                 <p className="error">{error}</p>
+              ) : notice && !segments.length ? (
+                <p className="notice">{notice}</p>
               ) : segments.length ? (
                 segments.map((s, i) =>
                   s.original !== undefined ? (
@@ -451,10 +510,20 @@ export default function App() {
       <input
         ref={fileRef}
         type="file"
-        accept=".txt,.md,text/plain"
+        accept=".txt,.md,.docx,text/plain"
         hidden
         onChange={(e) => {
           void onFileChosen(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+      <input
+        ref={cleanRef}
+        type="file"
+        accept=".docx"
+        hidden
+        onChange={(e) => {
+          void onCleanChosen(e.target.files?.[0]);
           e.target.value = "";
         }}
       />

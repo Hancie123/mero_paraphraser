@@ -28,6 +28,7 @@ from ..core.config import MAX_ATTEMPTS, drafts_for
 from ..schemas.paraphrase import ChunkResult, ParaphraseRequest
 from ..utils.document_utils import chunk_text
 from .citation_validator import CitationValidator, check_tokens
+from .code_guard import rewrite_block
 from .context_analyzer import ContextAnalyzer
 from .humanizer import HumanScore, human_score
 from .input_processor import InputProcessor, restore
@@ -85,6 +86,20 @@ class ParaphrasePipeline:
                           f"{time.perf_counter() - started:.1f}s", file=sys.stderr, flush=True)
             chunks.append(chunk)
 
+        # Code blocks: reword comments only; code_guard verifies the code is byte-identical.
+        code = {"blocks": 0, "comments": 0, "rewritten": 0, "untouched": 0}
+        for p in processed.protected:
+            if p.kind != "codeblock":
+                continue
+            code["blocks"] += 1
+            res = rewrite_block(p.text, p.lang, strength, None if seed is None else seed + p.index * 31)
+            code["comments"] += res.comments
+            code["rewritten"] += res.rewritten
+            if res.lang is None:
+                code["untouched"] += 1
+            if res.text != p.text:
+                p.replacement = res.text
+
         final = restore("".join(c.output for c in chunks), processed.protected) + processed.references
         meaning = self.meaning_validator.summary(chunks)
         # Layer 7 (whole text)
@@ -92,7 +107,7 @@ class ParaphrasePipeline:
         # Layer 8
         return self.output_formatter.format(
             processed, final, chunks, context, facts, meaning, citations,
-            mode=mode, strength=strength,
+            mode=mode, strength=strength, code=code,
         )
 
     def _rewrite_part(self, chunk: ChunkResult, strength: int, context, seed: int | None) -> None:
@@ -113,12 +128,14 @@ class ParaphrasePipeline:
 
         winner = best.result
         chunk.output, chunk.fixes, chunk.phrases = winner.output, winner.fixes, winner.phrases
+        chunk.dashes = winner.dashes
         chunk.issues, chunk.critical = winner.issues, winner.critical
         chunk.drafts, chunk.human_score, chunk.patterns = n, winner.human_score, winner.patterns
         chunk.restructured = winner.restructured
         chunk.attempts = attempt
         if winner.critical:  # citations couldn't be preserved: never ship a broken part
             chunk.output, chunk.kept_original, chunk.fixes, chunk.phrases = chunk.source, True, 0, 0
+            chunk.dashes = 0
             chunk.restructured = 0
 
     def _trial(self, chunk: ChunkResult, raw: str, facts, academic: bool, attempt: int, seed: int | None) -> _Trial:
@@ -126,6 +143,7 @@ class ParaphrasePipeline:
         refined = self.language_refiner.refine(raw, chunk.source, seed, humanize=True, academic=academic)
         result = ChunkResult(chunk.index, chunk.source, refined.text, True, attempt, refined.fixes, refined.phrases)
         result.restructured = refined.restructured
+        result.dashes = refined.dashes
         token_issues, critical = check_tokens(chunk.source, result.output)
         result.issues = token_issues if critical else check_facts(chunk.source, result.output, facts)
         result.critical = critical

@@ -40,12 +40,19 @@ class Protected:
     """A span kept out of the rewrite (Layer 1) and checked afterwards (Layer 7)."""
 
     index: int
-    kind: str  # citation | quote | url | email | doi | code
+    kind: str  # citation | quote | url | email | doi | code | math | codeblock | data | heading | locked
     text: str
+    lang: str = ""  # codeblock language
+    label: str = ""  # heading / locked section name
+    replacement: str | None = None  # codeblock with reworded comments (code verified unchanged)
 
     @property
     def token(self) -> str:
         return f"[[{self.index}]]"
+
+    @property
+    def output(self) -> str:
+        return self.text if self.replacement is None else self.replacement
 
 
 @dataclass
@@ -60,6 +67,8 @@ class ProcessedInput:
     paragraphs: int
     sentences: int
     words: int
+    invisible: int = 0  # invisible / look-alike characters removed by clean()
+    sections: list[tuple[str, bool]] = field(default_factory=list)  # (heading, locked)
 
     def count(self, kind: str) -> int:
         return sum(1 for p in self.protected if p.kind == kind)
@@ -97,6 +106,7 @@ class ChunkResult:
     attempts: int = 0
     fixes: int = 0  # Layer 5 corrections
     phrases: int = 0  # Layer 5 stock-phrase replacements
+    dashes: int = 0  # Layer 5 em dashes replaced
     issues: list[str] = field(default_factory=list)
     critical: bool = False
     kept_original: bool = False

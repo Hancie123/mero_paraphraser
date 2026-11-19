@@ -127,13 +127,19 @@ class OutputFormatter:
         *,
         mode: str,
         strength: int,
+        code: dict | None = None,
     ) -> dict:
+        code = code or {"blocks": 0, "comments": 0, "rewritten": 0, "untouched": 0}
         source = processed.original
         segments, changes, changed_words = diff_segments(source, final_text)
         words_in = word_count(source)
         words_out = word_count(final_text)
         fixes = sum(c.fixes for c in chunks)
         phrases = sum(c.phrases for c in chunks)
+        dashes = sum(c.dashes for c in chunks)
+        blocks = citations.get("blocks", {})
+        locked_sections = [name for name, locked in processed.sections if locked]
+        prose_sections = [name for name, locked in processed.sections if not locked]
         rewritten = [c for c in chunks if c.rewrite]
         restructured = sum(c.restructured for c in rewritten)
         human_scores = [c.human_score for c in rewritten if c.human_score is not None and not c.kept_original]
@@ -146,6 +152,14 @@ class OutputFormatter:
             protected_parts.append(f"{citations['quotes']} quotation{'s' * (citations['quotes'] != 1)}")
         if citations["links"]:
             protected_parts.append(f"{citations['links']} link{'s' * (citations['links'] != 1)}")
+        if blocks.get("codeblock"):
+            protected_parts.append(_n(blocks["codeblock"], "code block"))
+        if blocks.get("data"):
+            protected_parts.append(_n(blocks["data"], "table"))
+        if processed.count("math"):
+            protected_parts.append(_n(processed.count("math"), "equation"))
+        if locked_sections or blocks.get("locked"):
+            protected_parts.append(_n(max(len(locked_sections), blocks.get("locked", 0)), "locked section"))
 
         # ---- per-layer report
         layers: list[LayerReport] = []
@@ -158,6 +172,8 @@ class OutputFormatter:
             detail += "; protected " + _list(protected_parts)
         if processed.references:
             detail += "; reference list set aside"
+        if processed.invisible:
+            detail += f"; removed {_n(processed.invisible, 'invisible character')}"
         add(0, "ok", detail + ".")
 
         detail = f"{context.register.capitalize()} writing"
@@ -165,6 +181,10 @@ class OutputFormatter:
             detail += "; key terms: " + _list(context.terms, 5)
         if context.relationships:
             detail += "; relationships: " + _list(context.relationships, 4)
+        if prose_sections:
+            detail += "; sections rewritten: " + _list(prose_sections, 6)
+        if locked_sections:
+            detail += "; kept as written: " + _list(locked_sections, 6)
         add(1, "ok", detail + ".")
 
         tracked = []
@@ -190,6 +210,8 @@ class OutputFormatter:
         detail = (f"{fixes} spacing, punctuation or grammar fix{'es' * (fixes != 1)}" if fixes else "No corrections needed")
         if phrases:
             detail += f"; replaced {phrases} overused phrase{'s' * (phrases != 1)}"
+        if dashes:
+            detail += f"; replaced {_n(dashes, 'em dash', 'em dashes')}"
         if restructured:
             detail += f"; {_n(restructured, 'structural edit')} for a more natural rhythm"
         add(4, "ok", detail + ".")
@@ -199,11 +221,17 @@ class OutputFormatter:
         else:
             add(5, "ok", "Facts, numbers, names, negations and hedging preserved.")
 
+        code_note = ""
+        if code["blocks"]:
+            code_note = (f" Code: {_n(code['rewritten'], 'comment line')} reworded in {_n(code['blocks'], 'block')}; "
+                         "the code itself was checked and is unchanged.")
+            if code["untouched"]:
+                code_note += f" {_n(code['untouched'], 'block')} in an unrecognised language left as is."
         if not citations["ok"]:
-            add(6, "warning", "Some protected text changed: " + _list(citations["missing"], 3) + ".")
+            add(6, "warning", "Some protected text changed: " + _list(citations["missing"], 3) + "." + code_note)
         elif protected_parts or citations["references"]:
-            kept = _list(protected_parts + (["the reference list"] if citations["references"] else []))
-            add(6, "ok", f"Kept {kept} exactly as written.")
+            kept = _list(protected_parts + (["the reference list"] if citations["references"] else []), 8)
+            add(6, "ok", f"Kept {kept} exactly as written." + code_note)
         else:
             add(6, "ok", "No citations, quotations or references to check.")
 
@@ -229,6 +257,14 @@ class OutputFormatter:
             explain.append("Kept every number, name and technical term from the original.")
         if protected_parts or citations["references"]:
             explain.append("Citations, quotations and references were left exactly as written.")
+        if code["rewritten"]:
+            explain.append("Reworded comments in the code; variables, syntax and logic are byte-for-byte the same.")
+        if locked_sections:
+            explain.append("Left " + _list(locked_sections, 4) + " exactly as written.")
+        if dashes:
+            explain.append(f"Replaced {_n(dashes, 'em dash', 'em dashes')} with commas, colons or full stops.")
+        if processed.invisible:
+            explain.append(f"Removed {_n(processed.invisible, 'invisible character')} (zero-width spaces, soft hyphens and similar).")
         if phrases:
             explain.append(f"Replaced {phrases} overused AI-style phrase{'s' * (phrases != 1)} with plainer wording.")
         if drafts > 1 or restructured:
@@ -258,5 +294,8 @@ class OutputFormatter:
                     "structural_edits": restructured,
                     "patterns": patterns,
                 },
+                "sections": [{"name": n, "locked": l} for n, l in processed.sections],
+                "code": code,
+                "invisible_removed": processed.invisible,
             },
         }

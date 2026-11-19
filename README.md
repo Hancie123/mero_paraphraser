@@ -8,6 +8,11 @@ An offline desktop paraphrasing tool built with **Tauri 2** (Rust + React/TypeSc
 - A "Changes" slider that controls how much text is rewritten
 - An eight-layer pipeline that protects citations, quotations and references, checks that the facts didn't change, and explains what it changed (the **Review** tab)
 - Changed words are highlighted. Click one to pick another alternative or go back to the original.
+- **Section-aware**: Abstract, Introduction, Discussion and Conclusion are rewritten; code blocks, tables, equations, headings and sections such as Declarations, Funding, Conflicts of interest, Data availability and Keywords are kept exactly as written
+- **Code-safe**: in code blocks only natural-language comments (`#`, `//`, `/* */`, `--`, Python docstrings) are reworded. The block is lexed again afterwards and every code token must be identical (for Python the syntax tree too); otherwise the block is left unchanged. Directives (`# noqa`, `// @ts-ignore`, licence headers), doctests and unknown languages are never touched
+- **Plainer wording**: stock language-model phrases ("delve into", "plays a pivotal role", "a myriad of") are replaced wherever they appear, and em dashes become commas, colons or full stops
+- **Invisible-character cleanup**: zero-width spaces, word joiners, BOMs, soft hyphens, stray bidi controls and hidden tag characters are removed, while the joiners Nepali, Hindi, Arabic and emoji need are kept
+- **Word files**: open a .docx, save the result as a .docx that carries no document properties (no author, company, timestamps or revision IDs), and *File > Remove personal info from a Word file* to strip names, dates, revision IDs, custom properties and template paths from an existing document
 - Runs fully offline and fast. The engine uses only the Python standard library, with no AI model to download.
 
 ## Architecture
@@ -54,7 +59,7 @@ In **release** the engine is bundled with PyInstaller and shipped as a Tauri sid
 
 | # | Layer | What it does |
 |---|---|---|
-| 1 | Input processing | Cleans invisible characters and line endings, splits paragraphs, sets a trailing reference list aside, and replaces citations (`(Smith, 2020)`, `Smith et al. (2020)`, `[3]`), direct quotations, links, DOIs and code with `[[n]]` tokens |
+| 1 | Input processing | Cleans invisible characters and line endings, finds sections, code, tables and math (`sections.py`), splits paragraphs, sets a trailing reference list aside, and replaces citations (`(Smith, 2020)`, `Smith et al. (2020)`, `[3]`), direct quotations, links, DOIs and code with `[[n]]` tokens |
 | 2 | Context analysis | Detects the register (academic, professional, general), proper names and acronyms, repeated key terms, and logical relationships (contrast, cause and effect…) |
 | 3 | Semantic understanding | Lists what each part must keep: numbers, names, negations and hedges ("may", "suggests") |
 | 4 | Rewriting | Rewrites a few paragraphs at a time with the rule-based engine: phrase rewrites, synonym swaps and contractions. It writes 2–3 drafts with different seeds and keeps the one that reads most human |
