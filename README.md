@@ -27,7 +27,7 @@
 
 Mero Paraphraser is a desktop app built with **Tauri 2** (a Rust shell and a React + TypeScript UI) and a **rule-based Python engine**. Everything runs on your computer. Nothing you type leaves the device, there's no account, and there's no AI model to download.
 
-Text goes through an eight-layer pipeline. It rewrites the prose, checks that numbers, names, negations, hedges and citations survived, and explains every change in a review panel.
+Text goes through an eight-layer pipeline. It rewrites the prose, checks that numbers, names, negations, hedges and citations survived, and highlights every change by size: word, phrase, sentence or added text.
 
 ## Features
 
@@ -35,7 +35,7 @@ Text goes through an eight-layer pipeline. It rewrites the prose, checks that nu
 |---|---|
 | ✍️ **Humanize mode** | Natural, everyday rewording with varied sentence rhythm, natural connectors and contractions |
 | 🎚️ **Changes slider** | Controls how much of the text is rewritten, from light edits to a thorough rewrite |
-| 🔍 **Reviewable edits** | Changed words are highlighted. Click one to pick another alternative or restore the original. The **Review** tab explains what each layer did |
+| 🔍 **Reviewable edits** | Changes are colour-coded by size (word, phrase, sentence, added), with a count of each under the result. Click one to pick another alternative or restore the original |
 | 🛡️ **Fact checks** | Numbers, names, negations and hedging words ("may", "suggests") must survive, or the part is rewritten again |
 | 📚 **Citation-safe** | Citations (`(Smith, 2020)`, `[3]`), quotations, links, DOIs and the reference list are kept exactly as written. No citation is ever added |
 | 🧭 **Section-aware** | Prose sections such as Abstract, Introduction and Discussion are rewritten. Headings, tables, equations, Keywords, Funding, Declarations and similar sections are left untouched |
@@ -128,7 +128,7 @@ The installer, `src-tauri/target/release/bundle/nsis/Mero Paraphraser_<version>_
 ```
 mero_paraphraser/
 ├── src/                          # React + TypeScript UI
-│   ├── App.tsx                   #   main window, editor, review panel
+│   ├── App.tsx                   #   main window, editor, highlighted result
 │   ├── MenuBar.tsx               #   File / Edit / View / Help menus
 │   └── api.ts                    #   typed calls into the Rust layer
 ├── src-tauri/                    # Tauri 2 shell (Rust)

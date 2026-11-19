@@ -124,6 +124,18 @@ class Layer8OutputTests(unittest.TestCase):
         self.assertIn("big", changed[0]["alternatives"])
         self.assertEqual(changes, 2)
 
+    def test_change_levels(self):
+        segs, _, _ = diff_segments("The big dog ran home, and it was happy. We liked it.",
+                                   "The large dog ran home. It felt happy. We really liked it.")
+        levels = [(s["original"], s["level"]) for s in segs if "level" in s]
+        # The split sentence is highlighted whole (its word swap included); small edits elsewhere stay small.
+        self.assertEqual(levels, [("The big dog ran home, and it was happy.", "sentence"), ("", "added")])
+        whole = next(s for s in segs if s.get("level") == "sentence")
+        self.assertEqual(whole["text"], "The large dog ran home. It felt happy.")
+        self.assertEqual(whole["alternatives"], ["The big dog ran home, and it was happy."])
+        segs, _, _ = diff_segments("A big dog. A small cat.", "A large dog. A tiny cat.")
+        self.assertEqual([s["level"] for s in segs if "level" in s], ["word", "word"])
+
 
 class ChunkTests(unittest.TestCase):
     def test_roundtrip_and_long_paragraphs(self):

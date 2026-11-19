@@ -7,7 +7,10 @@ layer found into a short report and plain-language explanations.
 
 from __future__ import annotations
 
+import bisect
 import difflib
+import re
+from dataclasses import dataclass
 
 from ..core import lexicon as lx
 from ..core.config import MODES
@@ -61,10 +64,102 @@ def alternatives(text: str, original: str) -> list[str]:
     return alts[:8]
 
 
-def diff_segments(source: str, output: str) -> tuple[list[dict], int, int]:
-    """Returns (segments, number of changes, number of source words changed)."""
+_SENTENCE_MARKS = re.compile(r"[.!?;](?=\s|$)")
+
+
+def change_level(text: str, original: str) -> str:
+    """How big a change is, for colour-coded highlighting: word, phrase, sentence or added."""
+    if not original:
+        return "added"
+    new_words, old_words = len(WORD_RE.findall(text)), len(WORD_RE.findall(original))
+    # A sentence was split, joined or rebuilt: its end punctuation changed, or most of it was rewritten.
+    if len(_SENTENCE_MARKS.findall(text)) != len(_SENTENCE_MARKS.findall(original)) or max(new_words, old_words) >= 8:
+        return "sentence"
+    if new_words <= 1 and old_words <= 1:
+        return "word"
+    return "phrase"
+
+
+# Where a new sentence starts in the output: after end punctuation (and closing quotes) plus space, or a line break.
+_SENTENCE_BREAK = re.compile(r"[.!?…][\"”’)\]]*\s+|\n+")
+
+
+@dataclass
+class _Piece:
+    text: str  # output text
+    orig: str  # the source text it replaces (equal to text when unchanged)
+    changed: bool  # a visible change (deletions and whitespace-only edits are not)
+
+
+def _pieces(source: str, output: str) -> tuple[list[_Piece], int]:
+    """Token-level diff as pieces that join back to ``output`` (texts) and ``source`` (origs)."""
     a, b = tokens(source), tokens(output)
     sm = difflib.SequenceMatcher(None, [t.strip() for t in a], [t.strip() for t in b], autojunk=False)
+    pieces: list[_Piece] = []
+    changed_words = 0
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        new, orig = "".join(b[j1:j2]), "".join(a[i1:i2])
+        if op == "equal":
+            pieces.append(_Piece(new, orig, False))
+            continue
+        changed_words += len(WORD_RE.findall(orig))
+        core = new.rstrip()
+        if not core:  # a deletion, or only whitespace changed
+            pieces.append(_Piece(new, orig, False))
+            continue
+        orig_core = orig.rstrip()
+        pieces.append(_Piece(core, orig_core, True))
+        if new[len(core):] or orig[len(orig_core):]:
+            pieces.append(_Piece(new[len(core):], orig[len(orig_core):], False))
+    return pieces, changed_words
+
+
+def _sentence_spans(pieces: list[_Piece], output: str) -> list[tuple[int, int]]:
+    """Output ranges of whole sentences that contain a sentence-level change."""
+    bounds = sorted({0, len(output), *(m.end() for m in _SENTENCE_BREAK.finditer(output))})
+    spans: list[list[int]] = []
+    pos = 0
+    for p in pieces:
+        start, end = pos, pos + len(p.text)
+        pos = end
+        if p.changed and change_level(p.text, p.orig.strip()) == "sentence":
+            s = bounds[bisect.bisect_right(bounds, start) - 1]
+            e = bounds[bisect.bisect_left(bounds, end)]
+            spans.append([s, e])
+    # A piece that only partly overlaps a span (a change, or text whose source differs) joins it whole.
+    changed = True
+    while changed and spans:
+        changed = False
+        spans.sort()
+        merged = [spans[0]]
+        for s, e in spans[1:]:
+            if s < merged[-1][1]:
+                merged[-1][1] = max(merged[-1][1], e)
+            else:
+                merged.append([s, e])
+        spans = merged
+        pos = 0
+        for p in pieces:
+            start, end = pos, pos + len(p.text)
+            pos = end
+            if not (p.changed or p.text != p.orig):
+                continue
+            for span in spans:
+                if start < span[1] and end > span[0] and (start < span[0] or end > span[1]):
+                    span[0], span[1] = min(span[0], start), max(span[1], end)
+                    changed = True
+    return [(s, e) for s, e in spans]
+
+
+def diff_segments(source: str, output: str) -> tuple[list[dict], int, int]:
+    """Returns (segments, number of changes, number of source words changed).
+
+    Small changes are highlighted on their own. When a sentence was split, joined
+    or largely rewritten, the whole new sentence is one highlighted segment whose
+    ``original`` is the old sentence.
+    """
+    pieces, changed_words = _pieces(source, output)
+    spans = _sentence_spans(pieces, output)
     segments: list[dict] = []
 
     def plain(text: str) -> None:
@@ -75,29 +170,50 @@ def diff_segments(source: str, output: str) -> tuple[list[dict], int, int]:
         else:
             segments.append({"text": text})
 
-    changes = changed_words = 0
-    for op, i1, i2, j1, j2 in sm.get_opcodes():
-        if op == "equal":
-            plain("".join(b[j1:j2]))
-            continue
-        orig = "".join(a[i1:i2])
-        changed_words += len(WORD_RE.findall(orig))
-        if op == "delete":
-            continue
-        new = "".join(b[j1:j2])
-        core = new.rstrip()
-        if not core:  # only whitespace changed
-            plain(new)
-            continue
-        changes += 1
-        orig_core = orig.strip()
+    def change(text: str, orig: str, level: str | None = None, kind: str | None = None) -> None:
+        core, orig_core = text.rstrip(), orig.strip()
         segments.append({
             "text": core,
             "original": orig_core,
-            "kind": change_kind(core, orig_core),
-            "alternatives": alternatives(core, orig_core),
+            "kind": kind or change_kind(core, orig_core),
+            "level": level or change_level(core, orig_core),
+            "alternatives": [orig_core] if level == "sentence" else alternatives(core, orig_core),
         })
-        plain(new[len(core):])
+        plain(text[len(core):])
+
+    # Split unchanged pieces at span edges, so every piece is wholly inside or outside a span.
+    edges = sorted({x for span in spans for x in span})
+    placed: list[tuple[int, _Piece]] = []
+    pos = 0
+    for p in pieces:
+        start = pos
+        pos += len(p.text)
+        if p.changed or p.text != p.orig:
+            placed.append((start, p))
+            continue
+        prev = 0
+        for cut in [x - start for x in edges if start < x < pos] + [len(p.text)]:
+            placed.append((start + prev, _Piece(p.text[prev:cut], p.orig[prev:cut], False)))
+            prev = cut
+
+    current: int | None = None  # index of the span being collected
+    span_text = span_orig = ""
+    for start, p in placed:
+        k = next((i for i, (s, e) in enumerate(spans) if s <= start < e), None)
+        if k != current and current is not None:
+            change(span_text, span_orig, "sentence", "Rewritten sentence")
+            span_text = span_orig = ""
+        current = k
+        if k is not None:
+            span_text += p.text
+            span_orig += p.orig
+        elif p.changed:
+            change(p.text, p.orig)
+        else:
+            plain(p.text)
+    if current is not None:
+        change(span_text, span_orig, "sentence", "Rewritten sentence")
+    changes = sum(1 for s in segments if "original" in s)
     return segments, changes, changed_words
 
 
@@ -282,6 +398,8 @@ class OutputFormatter:
                 "words_out": words_out,
                 "changes": changes,
                 "change_pct": pct,
+                "levels": {lvl: sum(1 for x in segments if x.get("level") == lvl)
+                           for lvl in ("word", "phrase", "sentence", "added")},
             },
             "report": {
                 "layers": [l.to_dict() for l in layers],

@@ -12,7 +12,6 @@ import {
   MODES,
   paraphrase,
   type Mode,
-  type Report,
   type Segment,
   type Stats,
 } from "./api";
@@ -22,6 +21,14 @@ import { countWords, replaceSegment } from "./text";
 type EngineState = { state: "starting" } | { state: "ready"; version: string } | { state: "error"; message: string };
 type Picker = { index: number; x: number; y: number };
 type DialogKind = "about" | "shortcuts" | null;
+
+const LEVELS = ["word", "phrase", "sentence", "added"] as const;
+const LEVEL_LABELS: Record<string, string> = {
+  word: "Word",
+  phrase: "Phrase",
+  sentence: "Sentence",
+  added: "Added",
+};
 
 const STRENGTH_LABELS = ["Light", "Moderate", "Strong"];
 const ZOOM_STEPS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
@@ -45,8 +52,6 @@ export default function App() {
   const [strength, setStrength] = useState(50);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
-  const [report, setReport] = useState<Report | null>(null);
-  const [view, setView] = useState<"text" | "review">("text");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -82,7 +87,6 @@ export default function App() {
       const result = await paraphrase(input, mode, strength, seed);
       setSegments(result.segments);
       setStats(result.stats);
-      setReport(result.report ?? null);
       setEngine((e) => (e.state === "ready" ? e : { state: "ready", version: "" }));
     } catch (e) {
       setError(String(e));
@@ -96,7 +100,7 @@ export default function App() {
   const newDoc = () => {
     setInput("");
     setSegments([]);
-    setStats(null);    setReport(null);    setView("text");
+    setStats(null);
     setError(null);
     editorRef.current?.focus();
   };
@@ -112,7 +116,7 @@ export default function App() {
       setNotice(null);
       setInput(text.slice(0, MAX_CHARS));
       setSegments([]);
-      setStats(null);      setReport(null);      setView("text");
+      setStats(null);
       if (text.length > MAX_CHARS) setError(`The file was cut to ${MAX_CHARS.toLocaleString()} characters.`);
     } catch (e) {
       setError(typeof e === "string" ? `That file could not be read: ${e}` : "That file could not be read.");
@@ -231,7 +235,7 @@ export default function App() {
     if (!output) return;
     setInput(output);
     setSegments([]);
-    setStats(null);    setReport(null);    setView("text");
+    setStats(null);
   };
 
   const applyZoom = (z: number) => {
@@ -430,26 +434,7 @@ export default function App() {
 
           <div className="pane">
             <div className="pane-head">
-              <div className="pane-tabs" role="tablist" aria-label="Result view">
-                <button
-                  role="tab"
-                  aria-selected={view === "text"}
-                  className={view === "text" ? "pane-tab active" : "pane-tab"}
-                  onClick={() => setView("text")}
-                >
-                  Paraphrased
-                </button>
-                <button
-                  role="tab"
-                  aria-selected={view === "review"}
-                  className={view === "review" ? "pane-tab active" : "pane-tab"}
-                  onClick={() => setView("review")}
-                  disabled={!report}
-                >
-                  Review
-                  {report && report.warnings.length > 0 && <span className="tab-dot" aria-label="has warnings" />}
-                </button>
-              </div>
+              <span>Paraphrased</span>
               <div className="actions">
                 <label className="toggle">
                   <input type="checkbox" checked={highlight} onChange={(e) => setHighlight(e.target.checked)} />
@@ -462,9 +447,6 @@ export default function App() {
               </div>
             </div>
             <div className={busy ? "progress indeterminate" : "progress"} role="progressbar" aria-hidden={!busy} />
-            {view === "review" && report ? (
-              <ReviewPanel report={report} />
-            ) : (
             <div className={busy ? "output busy" : "output"} aria-live="polite">
               {error ? (
                 <p className="error">{error}</p>
@@ -475,8 +457,8 @@ export default function App() {
                   s.original !== undefined ? (
                     <button
                       key={i}
-                      className={highlight ? "chg on" : "chg"}
-                      title={`${s.kind ?? "Changed"}: “${s.original || "(new)"}” → “${s.text}” · click for alternatives`}
+                      className={highlight ? `chg on lvl-${s.level ?? "phrase"}` : "chg"}
+                      title={`${LEVEL_LABELS[s.level ?? "phrase"]} · ${s.kind ?? "Changed"}: “${s.original || "(new)"}” → “${s.text}” · click for alternatives`}
                       onClick={(e) => openPicker(i, e.currentTarget)}
                     >
                       {s.text}
@@ -491,12 +473,24 @@ export default function App() {
                 </p>
               )}
             </div>
-            )}
             <div className="pane-foot">
               {stats ? (
-                <span>
-                  {countWords(output)} words · {stats.changes} edits · {stats.change_pct}% of words changed
-                </span>
+                <>
+                  <span>
+                    {countWords(output)} words · {stats.changes} edits · {stats.change_pct}% of words changed
+                  </span>
+                  {highlight && stats.levels && (
+                    <span className="legend" aria-label="Highlight colours">
+                      {LEVELS.filter((l) => stats.levels![l]).map((l) => (
+                        <span key={l} className={`legend-item lvl-${l}`}>
+                          <i aria-hidden="true" />
+                          {stats.levels![l]} {LEVEL_LABELS[l].toLowerCase()}
+                          {stats.levels![l] === 1 ? "" : l === "added" ? "" : "s"}
+                        </span>
+                      ))}
+                    </span>
+                  )}
+                </>
               ) : (
                 <span>&nbsp;</span>
               )}
@@ -530,9 +524,16 @@ export default function App() {
 
       {picker && active && (
         <div ref={pickerRef} className="picker" style={{ left: picker.x, top: picker.y }} role="menu">
-          <div className="picker-head">Replace “{active.text}”</div>
+          <div className="picker-head">
+            Replace “{active.text.length > 60 ? active.text.slice(0, 57).trimEnd() + "…" : active.text}”
+          </div>
           {(active.alternatives ?? []).map((alt) => (
-            <button key={alt} role="menuitem" onClick={() => choose(alt)}>
+            <button
+              key={alt}
+              role="menuitem"
+              className={active.level === "sentence" ? "picker-sentence" : undefined}
+              onClick={() => choose(alt)}
+            >
               {alt}
               {alt === active.original && <em>original</em>}
             </button>
@@ -606,44 +607,6 @@ function Dialog({
           </button>
         </div>
       </div>
-    </div>
-  );
-}
-
-const LAYER_ICONS: Record<string, string> = { ok: "✓", warning: "!" };
-
-/** Layer 8 view: what each of the eight layers did, plus plain-language explanations. */
-function ReviewPanel({ report }: { report: Report }) {
-  return (
-    <div className="review" aria-live="polite">
-      {report.explanations.length > 0 && (
-        <section>
-          <h3>What changed</h3>
-          <ul className="explanations">
-            {report.explanations.map((e) => (
-              <li key={e}>{e}</li>
-            ))}
-          </ul>
-        </section>
-      )}
-      <section>
-        <h3>Processing layers</h3>
-        <ol className="layers">
-          {report.layers.map((l, i) => (
-            <li key={l.id} className={`layer ${l.status}`}>
-              <span className="layer-icon" aria-label={l.status === "ok" ? "Passed" : "Warning"}>
-                {LAYER_ICONS[l.status]}
-              </span>
-              <div>
-                <div className="layer-name">
-                  <span className="layer-num">Layer {i + 1}</span> {l.name}
-                </div>
-                <div className="layer-detail">{l.detail}</div>
-              </div>
-            </li>
-          ))}
-        </ol>
-      </section>
     </div>
   );
 }

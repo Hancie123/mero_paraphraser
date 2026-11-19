@@ -15,7 +15,11 @@ export interface Segment {
   /** What kind of change this is: Synonym, Reworded, Shortened, Expanded, Added, Capitalization. */
   kind?: string;
   alternatives?: string[];
+  /** How big the change is, for colour-coded highlighting. */
+  level?: ChangeLevel;
 }
+
+export type ChangeLevel = "word" | "phrase" | "sentence" | "added";
 
 /** One of the eight processing layers, as reported by the engine. */
 export interface LayerReport {
@@ -37,6 +41,8 @@ export interface Stats {
   words_out: number;
   changes: number;
   change_pct: number;
+  /** Number of highlighted changes of each level. */
+  levels?: Record<ChangeLevel, number>;
 }
 
 export interface ParaphraseResult {
