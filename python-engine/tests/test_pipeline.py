@@ -111,6 +111,16 @@ class Layer6And7ValidationTests(unittest.TestCase):
         self.assertIn("Hedging", issues)
         self.assertIn("Names", issues)
 
+    def test_lost_meaning_restores_only_that_sentence(self):
+        from app.pipeline.meaning_validator import restore_sentences
+
+        src = "Sales did not grow in 2023. The plan works well. Costs may rise."
+        out = "Sales grew in 2023. The plan functions well. Costs will rise."
+        text, restored = restore_sentences(src, out)
+        self.assertEqual(text, "Sales did not grow in 2023. The plan functions well. Costs may rise.")
+        self.assertEqual(restored, 2)
+        self.assertIsNone(restore_sentences(src, "Sales grew. In 2023 the plan worked."))
+
     def test_token_checks(self):
         self.assertEqual(check_tokens("A [[1]] b [[2]].", "B [[2]] a [[1]]."), ([], False))
         issues, critical = check_tokens("A [[1]] b [[2]].", "A b [[2]] (Smith, 2020).")

@@ -21,21 +21,39 @@ import {
   type Segment,
   type Stats,
 } from "./api";
-import { AboutDialog, EngineBadge, ShortcutsDialog } from "./Dialogs";
+import { AboutDialog, EngineBadge, ShortcutsDialog, WordPrefsDialog } from "./Dialogs";
 import MenuBar, { type Menu } from "./MenuBar";
 import Picker, { type PickerPos } from "./Picker";
-import ResultPane from "./ResultPane";
+import { caretAfterChange, useHistory } from "./history";
+import { addTo, loadPrefs, savePrefs, type WordPrefs } from "./prefs";
+import ResultPane, { type ResultView } from "./ResultPane";
 import { countWords, replaceSegment } from "./text";
 
-type DialogKind = "about" | "shortcuts" | null;
+type DialogKind = "about" | "shortcuts" | "prefs" | null;
 
 const STRENGTH_LABELS = ["Light", "Moderate", "Strong"];
+const levelLabel = (value: number) => STRENGTH_LABELS[Math.min(2, Math.floor(value / 34))];
 const ZOOM_STEPS = [0.8, 0.9, 1, 1.1, 1.25, 1.5];
+const OPENABLE = /\.(txt|md|docx)$/i;
+
+/** Typing and deleting are grouped into one undo step; paste, drop and the like are not. */
+const coalesces = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+  const type = (e.nativeEvent as InputEvent).inputType ?? "";
+  return type === "insertText" || type.startsWith("delete");
+};
+
+const hasFiles = (e: React.DragEvent | DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
 
 export default function App() {
-  const [input, setInput] = useState("");
+  const history = useHistory("");
+  const input = history.text;
+  const setInput = history.set;
+  const [source, setSource] = useState(""); // the text the current result was made from
+  const [view, setView] = useState<ResultView>("edits");
+  const [dragging, setDragging] = useState(false);
   const mode: Mode = "humanize";
-  const [strength, setStrength] = useState(50);
+  const [strength, setStrength] = useState(50); // how many words change
+  const [restructure, setRestructure] = useState(30); // how many sentences are rebuilt
   const [segments, setSegments] = useState<Segment[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
   const [busy, setBusy] = useState(false);
@@ -49,6 +67,11 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [dialog, setDialog] = useState<DialogKind>(null);
+  const [prefs, setPrefsState] = useState<WordPrefs>(loadPrefs);
+  const setPrefs = useCallback((next: WordPrefs) => {
+    setPrefsState(next);
+    savePrefs(next);
+  }, []);
   const editorRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const cleanRef = useRef<HTMLInputElement>(null);
@@ -77,7 +100,8 @@ export default function App() {
     setPicker(null);
     try {
       const seed = Math.floor(Math.random() * 2 ** 31);
-      const result = await paraphrase(input, mode, strength, seed);
+      const result = await paraphrase(input, mode, strength, restructure, seed, prefs);
+      setSource(input);
       setSegments(result.segments);
       setStats(result.stats);
       setEngine((e) => (e.state === "ready" ? e : { state: "ready", version: "" }));
@@ -86,7 +110,20 @@ export default function App() {
     } finally {
       setBusy(false);
     }
-  }, [input, strength, busy]);
+  }, [input, strength, restructure, busy, prefs]);
+
+  // A file dropped outside the Original box must not make the webview navigate to it.
+  useEffect(() => {
+    const block = (e: DragEvent) => {
+      if (hasFiles(e)) e.preventDefault();
+    };
+    window.addEventListener("dragover", block);
+    window.addEventListener("drop", block);
+    return () => {
+      window.removeEventListener("dragover", block);
+      window.removeEventListener("drop", block);
+    };
+  }, []);
 
   const cancel = () => void cancelEngine();
 
@@ -104,6 +141,10 @@ export default function App() {
 
   const onFileChosen = async (file: File | undefined) => {
     if (!file) return;
+    if (!OPENABLE.test(file.name)) {
+      setError(`${file.name} can't be opened. Use a .txt, .md or .docx file.`);
+      return;
+    }
     try {
       const text = file.name.toLowerCase().endsWith(".docx")
         ? (await readDocx(toBase64(await file.arrayBuffer()))).text
@@ -190,25 +231,81 @@ export default function App() {
 
   const exit = () => void getCurrentWindow().close();
 
-  /** Runs an editing command on the Original text box. */
-  const edit = (command: "undo" | "redo" | "cut" | "copy" | "selectAll") => {
+  /** Moves the caret once React has rendered `text` into the Original box. */
+  const placeCaret = (pos: number) =>
+    requestAnimationFrame(() => {
+      const el = editorRef.current;
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(pos, pos);
+    });
+
+  /** Replaces the selection in the Original box with `text` as one undo step. */
+  const replaceSelection = (text: string) => {
+    const el = editorRef.current;
+    if (!el) return;
+    const { selectionStart: start, selectionEnd: end } = el;
+    const next = (input.slice(0, start) + text + input.slice(end)).slice(0, MAX_CHARS);
+    setInput(next);
+    placeCaret(Math.min(start + text.length, next.length));
+  };
+
+  const undoInput = () => {
+    if (!history.canUndo) return;
+    const target = history.peek.undo;
+    history.undo();
+    placeCaret(caretAfterChange(input, target));
+  };
+  const redoInput = () => {
+    if (!history.canRedo) return;
+    const target = history.peek.redo;
+    history.redo();
+    placeCaret(caretAfterChange(input, target));
+  };
+
+  /** Runs an editing command on the Original text box (Clipboard API; no document.execCommand). */
+  const edit = async (command: "undo" | "redo" | "cut" | "copy" | "selectAll") => {
     const el = editorRef.current;
     if (!el) return;
     el.focus();
-    if (command === "selectAll") el.select();
-    else document.execCommand(command);
+    if (command === "selectAll") return el.select();
+    if (command === "undo") return undoInput();
+    if (command === "redo") return redoInput();
+    const selected = input.slice(el.selectionStart, el.selectionEnd);
+    if (!selected) return;
+    try {
+      await navigator.clipboard.writeText(selected);
+      if (command === "cut") replaceSelection("");
+    } catch {
+      setError(`Clipboard access was blocked. Use Ctrl+${command === "cut" ? "X" : "C"} instead.`);
+    }
   };
 
   const pasteIntoEditor = async () => {
-    const el = editorRef.current;
     try {
       const text = await navigator.clipboard.readText();
-      if (!text || !el) return;
-      el.focus();
-      document.execCommand("insertText", false, text); // keeps Undo working
+      if (text) replaceSelection(text);
     } catch {
       setError("Clipboard access was blocked. Paste with Ctrl+V instead.");
     }
+  };
+
+  /* ---------- drag and drop onto the Original box ---------- */
+
+  const onDragOver = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return; // dragged text: let the textarea handle it
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+    setDragging(true);
+  };
+  const onDragLeave = (e: React.DragEvent) => {
+    if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setDragging(false);
+  };
+  const onDrop = (e: React.DragEvent) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    setDragging(false);
+    void onFileChosen(e.dataTransfer.files[0]);
   };
 
   const paste = async () => {
@@ -260,7 +357,7 @@ export default function App() {
         } else if (busy) cancel();
         return;
       }
-      if (!ctrl || e.altKey) return;
+      if (!ctrl || e.altKey || dialog) return; // a dialog is modal: no app shortcuts behind it
       const k = e.key.toLowerCase();
       const handled = (fn: () => void) => {
         e.preventDefault();
@@ -296,6 +393,19 @@ export default function App() {
     setPicker(null);
   };
 
+  // From the picker: remember the choice for next time, and undo this change now.
+  const keepWord = (word: string) => {
+    setPrefs({ ...prefs, locked: addTo(prefs.locked, word) });
+    choose(word);
+    setNotice(`“${word}” will be kept as written from now on (Edit › Word preferences).`);
+  };
+  const banWord = (word: string) => {
+    if (!picker) return;
+    setPrefs({ ...prefs, banned: addTo(prefs.banned, word) });
+    choose(segments[picker.index].original ?? word);
+    setNotice(`“${word}” won’t be used from now on (Edit › Word preferences).`);
+  };
+
   const canRun = !busy && !!input.trim() && engine.state !== "error";
 
   const menus: Menu[] = [
@@ -316,18 +426,20 @@ export default function App() {
       label: "Edit",
       key: "E",
       items: [
-        { label: "Undo", shortcut: "Ctrl+Z", action: () => edit("undo") },
-        { label: "Redo", shortcut: "Ctrl+Y", action: () => edit("redo") },
+        { label: "Undo", shortcut: "Ctrl+Z", action: () => void edit("undo"), disabled: !history.canUndo },
+        { label: "Redo", shortcut: "Ctrl+Y", action: () => void edit("redo"), disabled: !history.canRedo },
         { separator: true },
-        { label: "Cut", shortcut: "Ctrl+X", action: () => edit("cut") },
-        { label: "Copy", shortcut: "Ctrl+C", action: () => edit("copy") },
+        { label: "Cut", shortcut: "Ctrl+X", action: () => void edit("cut") },
+        { label: "Copy", shortcut: "Ctrl+C", action: () => void edit("copy") },
         { label: "Paste", shortcut: "Ctrl+V", action: () => void pasteIntoEditor() },
-        { label: "Select all", shortcut: "Ctrl+A", action: () => edit("selectAll") },
+        { label: "Select all", shortcut: "Ctrl+A", action: () => void edit("selectAll") },
         { separator: true },
         { label: "Paraphrase", shortcut: "Ctrl+Enter", action: () => void run(), disabled: !canRun },
         { label: "Cancel paraphrasing", shortcut: "Esc", action: cancel, disabled: !busy },
         { label: "Copy result", shortcut: "Ctrl+Shift+C", action: () => void copy(), disabled: !output },
         { label: "Use result as input", action: useOutput, disabled: !output },
+        { separator: true },
+        { label: "Word preferences…", action: () => setDialog("prefs") },
       ],
     },
     {
@@ -353,7 +465,6 @@ export default function App() {
   ];
 
   const inputWords = countWords(input);
-  const strengthLabel = STRENGTH_LABELS[Math.min(2, Math.floor(strength / 34))];
   const active = picker ? segments[picker.index] : null;
 
   return (
@@ -378,23 +489,44 @@ export default function App() {
               </button>
             ))}
           </div>
-          <label className="strength">
-            <span>Changes</span>
-            <input
-              type="range"
-              min={0}
-              max={100}
-              step={1}
-              value={strength}
-              style={{ "--pct": `${strength}%` } as CSSProperties}
-              onChange={(e) => setStrength(Number(e.target.value))}
-            />
-            <span className="strength-label">{strengthLabel}</span>
-          </label>
+          {[
+            { label: "Words", hint: "How many words and phrases are swapped", value: strength, set: setStrength },
+            {
+              label: "Sentences",
+              hint: "How many sentences are rebuilt: clauses moved, active/passive, merged or shortened",
+              value: restructure,
+              set: setRestructure,
+            },
+          ].map((s) => (
+            <label className="strength" key={s.label} title={s.hint}>
+              <span>{s.label}</span>
+              <input
+                type="range"
+                min={0}
+                max={100}
+                step={1}
+                value={s.value}
+                aria-label={`${s.label}: ${s.hint}`}
+                style={{ "--pct": `${s.value}%` } as CSSProperties}
+                onChange={(e) => s.set(Number(e.target.value))}
+              />
+              <span className="strength-label">{s.value === 0 ? "Off" : levelLabel(s.value)}</span>
+            </label>
+          ))}
         </section>
 
         <main className="panes">
-          <div className="pane">
+          <div
+            className={dragging ? "pane dropping" : "pane"}
+            onDragOver={onDragOver}
+            onDragLeave={onDragLeave}
+            onDrop={onDrop}
+          >
+            {dragging && (
+              <div className="drop-hint" aria-hidden="true">
+                Drop a .txt, .md or .docx file to open it
+              </div>
+            )}
             <div className="pane-head">
               <span>Original</span>
               <div className="actions">
@@ -410,8 +542,20 @@ export default function App() {
               ref={editorRef}
               value={input}
               maxLength={MAX_CHARS}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Type or paste the text you want to paraphrase…"
+              onChange={(e) => setInput(e.target.value, coalesces(e))}
+              onKeyDown={(e) => {
+                // Our own history: the browser's undo stack doesn't track React's updates.
+                if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+                const k = e.key.toLowerCase();
+                if (k === "z" && !e.shiftKey) {
+                  e.preventDefault();
+                  undoInput();
+                } else if (k === "y" || (k === "z" && e.shiftKey)) {
+                  e.preventDefault();
+                  redoInput();
+                }
+              }}
+              placeholder="Type, paste or drop a file with the text you want to paraphrase…"
               spellCheck
               autoFocus
             />
@@ -437,6 +581,9 @@ export default function App() {
             segments={segments}
             stats={stats}
             output={output}
+            source={source}
+            view={view}
+            onViewChange={setView}
             busy={busy}
             error={error}
             notice={notice}
@@ -473,7 +620,16 @@ export default function App() {
         }}
       />
 
-      {picker && active && <Picker pos={picker} segment={active} onChoose={choose} onClose={closePicker} />}
+      {picker && active && (
+        <Picker
+          pos={picker}
+          segment={active}
+          onChoose={choose}
+          onKeep={keepWord}
+          onBan={banWord}
+          onClose={closePicker}
+        />
+      )}
 
       {dialog === "about" && (
         <AboutDialog
@@ -485,6 +641,7 @@ export default function App() {
         />
       )}
       {dialog === "shortcuts" && <ShortcutsDialog onClose={() => setDialog(null)} />}
+      {dialog === "prefs" && <WordPrefsDialog prefs={prefs} onSave={setPrefs} onClose={() => setDialog(null)} />}
     </div>
   );
 }

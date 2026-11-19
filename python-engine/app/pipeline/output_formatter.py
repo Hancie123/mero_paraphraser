@@ -14,6 +14,7 @@ from dataclasses import dataclass
 
 from ..core import lexicon as lx
 from ..core.config import MODES
+from ..core.preferences import NONE, Preferences
 from ..schemas.paraphrase import ChunkResult, Context, Facts, LayerReport, ProcessedInput
 from ..utils.text_utils import (
     WORD_RE,
@@ -52,13 +53,23 @@ def change_kind(text: str, original: str) -> str:
     return "Reworded"
 
 
-def alternatives(text: str, original: str) -> list[str]:
+def alternatives(text: str, original: str, prefs: Preferences = NONE) -> list[str]:
+    """Editor suggestions for a changed span: the user's preferred word first, never a banned word
+    or an opposite of the original, and always the original itself last."""
     alts: list[str] = []
+    candidates = []
+    preferred = prefs.preferred.get(original.lower())
+    if preferred:
+        candidates.append(preferred)
     if WORD_RE.fullmatch(text):
-        for alt in lx.suggestions_for(text.lower()) or []:
-            alt = match_case(text, alt)
-            if alt != text and alt not in alts:
-                alts.append(alt)
+        candidates += lx.suggestions_for(text.lower()) or []
+    low = original.lower()
+    for alt in candidates:
+        if not prefs.allows(alt) or (WORD_RE.fullmatch(original) and lx.opposed(low, alt.lower())):
+            continue
+        alt = match_case(text, alt)
+        if alt != text and alt not in alts:
+            alts.append(alt)
     if original and original != text and original not in alts:
         alts.append(original)  # always offer "go back to the original"
     return alts[:8]
@@ -151,7 +162,7 @@ def _sentence_spans(pieces: list[_Piece], output: str) -> list[tuple[int, int]]:
     return [(s, e) for s, e in spans]
 
 
-def diff_segments(source: str, output: str) -> tuple[list[dict], int, int]:
+def diff_segments(source: str, output: str, prefs: Preferences = NONE) -> tuple[list[dict], int, int]:
     """Returns (segments, number of changes, number of source words changed).
 
     Small changes are highlighted on their own. When a sentence was split, joined
@@ -178,7 +189,7 @@ def diff_segments(source: str, output: str) -> tuple[list[dict], int, int]:
                 "original": orig_core,
                 "kind": kind or change_kind(core, orig_core),
                 "level": level or change_level(core, orig_core),
-                "alternatives": [orig_core] if level == "sentence" else alternatives(core, orig_core),
+                "alternatives": [orig_core] if level == "sentence" else alternatives(core, orig_core, prefs),
             }
         )
         plain(text[len(core) :])
@@ -245,11 +256,13 @@ class OutputFormatter:
         *,
         mode: str,
         strength: int,
+        restructure: int = 0,
         code: dict | None = None,
+        prefs: Preferences = NONE,
     ) -> dict:
         code = code or {"blocks": 0, "comments": 0, "rewritten": 0, "untouched": 0}
         source = processed.original
-        segments, changes, changed_words = diff_segments(source, final_text)
+        segments, changes, changed_words = diff_segments(source, final_text, prefs)
         words_in = word_count(source)
         words_out = word_count(final_text)
         fixes = sum(c.fixes for c in chunks)
@@ -260,6 +273,7 @@ class OutputFormatter:
         prose_sections = [name for name, locked in processed.sections if not locked]
         rewritten = [c for c in chunks if c.rewrite]
         restructured = sum(c.restructured for c in rewritten)
+        reshaped = sum(c.reshaped for c in rewritten if not c.kept_original)
         human_scores = [c.human_score for c in rewritten if c.human_score is not None and not c.kept_original]
         patterns = sorted({p for c in rewritten if not c.kept_original for p in c.patterns})
         drafts = max((c.drafts for c in rewritten), default=0)
@@ -278,6 +292,8 @@ class OutputFormatter:
             protected_parts.append(_n(processed.count("math"), "equation"))
         if locked_sections or blocks.get("locked"):
             protected_parts.append(_n(max(len(locked_sections), blocks.get("locked", 0)), "locked section"))
+        if processed.count("term"):
+            protected_parts.append(_n(processed.count("term"), "locked term"))
 
         # ---- per-layer report
         layers: list[LayerReport] = []
@@ -321,6 +337,8 @@ class OutputFormatter:
             f"Rewrote {len(rewritten)} part{'s' * (len(rewritten) != 1)} in "
             f"{MODES[mode]} mode ({_strength_label(strength)} changes)"
         )
+        if reshaped:
+            detail += f"; restructured {_n(reshaped, 'sentence')} ({_strength_label(restructure)} restructuring)"
         if drafts > 1:
             detail += f"; kept the most human-sounding of {drafts} drafts per part"
         if meaning["retried"]:
@@ -409,6 +427,11 @@ class OutputFormatter:
             explain.append(
                 f"{meaning['kept_original']} part{'s' * (meaning['kept_original'] != 1)} kept unchanged because the rewrite didn't pass validation."
             )
+        restored = meaning.get("restored_sentences", 0)
+        if restored:
+            explain.append(
+                f"Kept {_n(restored, 'sentence')} as written because the rewrite lost a number, negation or hedge."
+            )
 
         return {
             "text": final_text,
@@ -432,6 +455,7 @@ class OutputFormatter:
                     "score": round(sum(human_scores) / len(human_scores), 2) if human_scores else None,
                     "drafts": drafts,
                     "structural_edits": restructured,
+                    "sentences_restructured": reshaped,
                     "patterns": patterns,
                 },
                 "sections": [{"name": n, "locked": l} for n, l in processed.sections],

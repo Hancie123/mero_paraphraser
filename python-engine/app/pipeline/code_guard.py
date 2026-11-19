@@ -24,6 +24,8 @@ import re
 import tokenize
 from dataclasses import dataclass, field
 
+from ..core.preferences import NONE, Preferences
+
 Token = tuple[str, str]  # (kind, text)
 
 
@@ -396,6 +398,7 @@ _FORBIDDEN = re.compile(r"[{}<>=$\\|;@]")
 class _Context:
     strength: int
     seed: int | None
+    prefs: Preferences = NONE
     rewritten: int = 0
     counter: int = 0
 
@@ -417,15 +420,17 @@ def _rewrite_prose(text: str, ctx: _Context) -> str:
         kept.append(m.group())
         return f"[[{len(kept)}]]"
 
-    masked = _CODEY.sub(mask, core)
+    locked = ctx.prefs.locked_re()
+    keep = re.compile(f"(?i:{locked.pattern})|{_CODEY.pattern}") if locked else _CODEY  # one pass: no nesting
+    masked = keep.sub(mask, core)
     words = re.findall(r"[A-Za-z]{2,}", re.sub(r"\[\[\d+\]\]", " ", masked))
     if len(words) < 4 or _FORBIDDEN.search(masked):
         return text
     ctx.counter += 1
     # One seed per comment; 13 is an arbitrary stride.
     seed = None if ctx.seed is None else ctx.seed + ctx.counter * 13
-    out = rule_engine.paraphrase(masked, ctx.strength, seed)["text"]
-    out = LanguageRefiner().refine(out, masked, seed).text
+    out = rule_engine.paraphrase(masked, ctx.strength, seed, ctx.prefs)["text"]
+    out = LanguageRefiner().refine(out, masked, seed, prefs=ctx.prefs).text
     _, critical = check_tokens(masked, out)
     if critical or "\n" in out or not out.strip():
         return text
@@ -545,7 +550,9 @@ def split_fence(block: str) -> tuple[str, str, str]:
     return m.group(1), rest[: c.start()], rest[c.start() :]
 
 
-def rewrite_block(block: str, lang: str, strength: int, seed: int | None = None) -> CodeResult:
+def rewrite_block(
+    block: str, lang: str, strength: int, seed: int | None = None, prefs: Preferences = NONE
+) -> CodeResult:
     """Reword the comments in a code block. The code itself is guaranteed unchanged."""
     name = resolve(lang)
     if name is None and not lang:
@@ -557,7 +564,7 @@ def rewrite_block(block: str, lang: str, strength: int, seed: int | None = None)
         toks = _tokens(body, name)
     except _Unsure:
         return CodeResult(block, name, notes=["couldn't be read with certainty: left unchanged"])
-    ctx = _Context(strength, seed)
+    ctx = _Context(strength, seed, prefs)
     comments = sum(1 for k, _ in toks if k != "code")
     new_body = "".join(t if k == "code" else _rewrite_comment(k, t, ctx) for k, t in toks)
     if new_body == body:

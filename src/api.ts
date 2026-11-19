@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { EMPTY_PREFS, toRequest, type WordPrefs } from "./prefs";
 
 export type Mode = "humanize";
 
@@ -52,8 +53,15 @@ export interface ParaphraseResult {
   report: Report;
 }
 
-export const paraphrase = (text: string, mode: Mode, strength: number, seed: number) =>
-  invoke<ParaphraseResult>("paraphrase", { text, mode, strength, seed });
+/** `strength`: how many words change; `restructure`: how many sentences are rebuilt (both 0-100). */
+export const paraphrase = (
+  text: string,
+  mode: Mode,
+  strength: number,
+  restructure: number,
+  seed: number,
+  prefs: WordPrefs = EMPTY_PREFS,
+) => invoke<ParaphraseResult>("paraphrase", { text, mode, strength, restructure, seed, prefs: toRequest(prefs) });
 
 export const exportDocx = (text: string) => invoke<{ data: string }>("export_docx", { text });
 export const readDocx = (data: string) => invoke<{ text: string }>("read_docx", { data });

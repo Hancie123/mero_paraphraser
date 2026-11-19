@@ -1,5 +1,6 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { EngineState } from "./api";
+import { formatList, formatPreferred, parseList, parsePreferred, type WordPrefs } from "./prefs";
 
 const SHORTCUTS: [string, string][] = [
   ["Paraphrase", "Ctrl+Enter"],
@@ -18,17 +19,21 @@ export function Dialog({
   title,
   children,
   actions,
+  wide,
+  closeLabel = "Close",
   onClose,
 }: {
   title: string;
   children: ReactNode;
   /** Extra footer buttons, shown before Close. */
   actions?: ReactNode;
+  wide?: boolean;
+  closeLabel?: string;
   onClose: () => void;
 }) {
   return (
     <div className="smoke" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <div className={wide ? "dialog dialog-wide" : "dialog"} role="dialog" aria-modal="true" aria-label={title}>
         <div className="dialog-body">
           <h2>{title}</h2>
           {children}
@@ -36,7 +41,7 @@ export function Dialog({
         <div className="dialog-foot">
           {actions}
           <button className={actions ? "btn" : "primary"} onClick={onClose} autoFocus={!actions}>
-            Close
+            {closeLabel}
           </button>
         </div>
       </div>
@@ -110,6 +115,71 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
           ))}
         </tbody>
       </table>
+    </Dialog>
+  );
+}
+
+/** Edit the locked terms, preferred synonyms and banned words. Saved only with Save. */
+export function WordPrefsDialog({
+  prefs,
+  onSave,
+  onClose,
+}: {
+  prefs: WordPrefs;
+  onSave: (prefs: WordPrefs) => void;
+  onClose: () => void;
+}) {
+  const [locked, setLocked] = useState(formatList(prefs.locked));
+  const [preferred, setPreferred] = useState(formatPreferred(prefs.preferred));
+  const [banned, setBanned] = useState(formatList(prefs.banned));
+  const save = () => {
+    onSave({ locked: parseList(locked), preferred: parsePreferred(preferred), banned: parseList(banned) });
+    onClose();
+  };
+  return (
+    <Dialog
+      title="Word preferences"
+      wide
+      closeLabel="Cancel"
+      onClose={onClose}
+      actions={
+        <button className="primary" onClick={save}>
+          Save
+        </button>
+      }
+    >
+      <p>Used for every paraphrase on this computer. One entry per line.</p>
+      <label className="prefs-field">
+        <span>Never change</span>
+        <small>Product names, technical terms. Capitals don’t matter.</small>
+        <textarea
+          value={locked}
+          onChange={(e) => setLocked(e.target.value)}
+          placeholder={"Mero Paraphraser\np-value"}
+          spellCheck={false}
+          autoFocus
+        />
+      </label>
+      <label className="prefs-field">
+        <span>Preferred synonyms</span>
+        <small>word = replacement. Used whenever that word is changed.</small>
+        <textarea
+          value={preferred}
+          onChange={(e) => setPreferred(e.target.value)}
+          placeholder={"utilize = use\nin order to = to"}
+          spellCheck={false}
+        />
+      </label>
+      <label className="prefs-field">
+        <span>Never use</span>
+        <small>Words the paraphraser must not put in.</small>
+        <textarea
+          value={banned}
+          onChange={(e) => setBanned(e.target.value)}
+          placeholder={"leverage\ndelve"}
+          spellCheck={false}
+        />
+      </label>
     </Dialog>
   );
 }

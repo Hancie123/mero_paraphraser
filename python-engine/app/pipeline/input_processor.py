@@ -5,8 +5,8 @@ sections (Declarations, Funding, Data availability...) are found first by
 sections.py and kept out of the rewrite as whole blocks. Invisible characters
 are purged by utils/invisible.py.
 
-Citations, direct quotations, links, inline code and math are replaced by ``[[n]]`` tokens
-before rewriting so the rewrite can't alter them; Layer 7 checks they all come
+Citations, direct quotations, links, inline code, math and the user's locked terms
+(see core/preferences.py) are replaced by ``[[n]]`` tokens before rewriting so the rewrite can't alter them; Layer 7 checks they all come
 back exactly once. A trailing reference list is split off and kept verbatim.
 """
 
@@ -15,6 +15,7 @@ from __future__ import annotations
 import re
 import unicodedata
 
+from ..core.preferences import NONE, Preferences
 from ..schemas.paraphrase import ProcessedInput, Protected
 from ..utils.document_utils import count_paragraphs, split_references
 from ..utils.invisible import purge
@@ -71,33 +72,44 @@ def clean(text: str) -> str:
     return clean_count(text)[0]
 
 
-def _protect_inline(text: str, protected: list[Protected]) -> str:
+def _inline_re(prefs: Preferences) -> tuple[re.Pattern, list[str]]:
+    """PROTECT_RE plus the user's locked terms, last so a citation or quote that starts there wins."""
+    locked = prefs.locked_re()
+    if locked is None:
+        return PROTECT_RE, KINDS
+    # (?i:...) so only the terms ignore case, not the citation patterns
+    return re.compile(f"{PROTECT_RE.pattern}|(?P<p{len(KINDS)}>(?i:{locked.pattern}))"), [*KINDS, "term"]
+
+
+def _protect_inline(text: str, protected: list[Protected], pattern: re.Pattern = PROTECT_RE, kinds=KINDS) -> str:
     def sub(m: re.Match) -> str:
-        kind = KINDS[int(m.lastgroup[1:])]
+        kind = kinds[int(m.lastgroup[1:])]
         p = Protected(len(protected) + 1, kind, m.group())
         protected.append(p)
         return p.token
 
-    return PROTECT_RE.sub(sub, text)  # one pass, so our tokens are never re-matched
+    return pattern.sub(sub, text)  # one pass, so our tokens are never re-matched
 
 
-def protect(text: str, layout: Layout | None = None) -> tuple[str, list[Protected]]:
+def protect(text: str, layout: Layout | None = None, prefs: Preferences = NONE) -> tuple[str, list[Protected]]:
     """Replace protected spans with [[n]] tokens.
 
     Whole blocks first (code, tables, math, headings, locked sections; see sections.py),
-    then inline spans (citations, quotations, links, inline code, math) in the prose between them.
+    then inline spans (citations, quotations, links, inline code, math, locked terms) in the prose
+    between them.
     """
     layout = analyze(text) if layout is None else layout
+    pattern, kinds = _inline_re(prefs)
     protected: list[Protected] = []
     out: list[str] = []
     pos = 0
     for b in layout.blocks:
-        out.append(_protect_inline(text[pos : b.start], protected))
+        out.append(_protect_inline(text[pos : b.start], protected, pattern, kinds))
         p = Protected(len(protected) + 1, b.kind, text[b.start : b.end], b.lang, b.label)
         protected.append(p)
         out.append(p.token)
         pos = b.end
-    out.append(_protect_inline(text[pos:], protected))
+    out.append(_protect_inline(text[pos:], protected, pattern, kinds))
     return "".join(out), protected
 
 
@@ -107,11 +119,11 @@ def restore(masked: str, protected: list[Protected]) -> str:
 
 
 class InputProcessor:
-    def process(self, text: str) -> ProcessedInput:
+    def process(self, text: str, prefs: Preferences = NONE) -> ProcessedInput:
         cleaned, invisible = clean_count(text)
         body, references = split_references(cleaned)
         layout = analyze(body)
-        masked, protected = protect(body, layout)
+        masked, protected = protect(body, layout, prefs)
         return ProcessedInput(
             original=text,
             body=body,

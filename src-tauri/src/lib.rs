@@ -21,13 +21,24 @@ async fn paraphrase(
     text: String,
     mode: String,
     strength: u8,
+    restructure: Option<u8>,
     seed: Option<u64>,
+    prefs: Option<Value>,
 ) -> Result<Value, String> {
-    call(
-        &engine,
-        json!({ "cmd": "paraphrase", "text": text, "mode": mode, "strength": strength, "seed": seed }),
-    )
-    .await
+    let mut request = json!({ "cmd": "paraphrase", "text": text, "mode": mode, "strength": strength, "seed": seed });
+    // How much sentences are restructured; without it the engine uses `strength` for both.
+    if let Some(restructure) = restructure {
+        request["restructure"] = json!(restructure);
+    }
+    // The user's word preferences; the engine validates them.
+    if let Some(Value::Object(prefs)) = prefs {
+        for key in ["locked_terms", "preferred", "banned"] {
+            if let Some(value) = prefs.get(key) {
+                request[key] = value.clone();
+            }
+        }
+    }
+    call(&engine, request).await
 }
 
 /// Builds a .docx of `text` with no document properties (base64).

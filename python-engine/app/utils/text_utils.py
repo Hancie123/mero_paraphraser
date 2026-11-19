@@ -46,23 +46,38 @@ def tokens(text: str) -> list[str]:
     return TOKEN_RE.findall(text)
 
 
-def split_sentences(text: str) -> list[str]:
-    """Split prose into sentences, ignoring common abbreviations like "e.g." and "et al."."""
-    out: list[str] = []
+def _trimmed(text: str, a: int, b: int) -> tuple[int, int]:
+    while a < b and text[a].isspace():
+        a += 1
+    while b > a and text[b - 1].isspace():
+        b -= 1
+    return a, b
+
+
+def sentence_spans(text: str) -> list[tuple[int, int]]:
+    """``(start, end)`` of each sentence, ignoring abbreviations like "e.g.", "U.S." and "et al."."""
+    spans: list[tuple[int, int]] = []
     start = 0
     for m in _SENTENCE_END.finditer(text):
         before = text[start : m.start()].rstrip('"”’)]')
         last = re.search(r"(\w+(?:\.\w+)*)\.$", before)
-        if last and last.group(1).lower() in _ABBREVIATIONS:
-            continue
-        if last and len(last.group(1)) == 1 and last.group(1).isupper():  # initials: "J. Smith"
-            continue
-        out.append(text[start : m.start()].strip())
+        if last:
+            word = last.group(1)
+            if word.lower() in _ABBREVIATIONS:
+                continue
+            if len(word) == 1 and word.isupper():  # initials: "J. Smith"
+                continue
+            if "." in word and all(len(part) == 1 for part in word.split(".")):  # "U.S.", "e.g."
+                continue
+        spans.append(_trimmed(text, start, m.start()))
         start = m.end()
-    tail = text[start:].strip()
-    if tail:
-        out.append(tail)
-    return [s for s in out if WORD_RE.search(s)]
+    spans.append(_trimmed(text, start, len(text)))
+    return [(a, b) for a, b in spans if WORD_RE.search(text[a:b])]
+
+
+def split_sentences(text: str) -> list[str]:
+    """Split prose into sentences, ignoring common abbreviations like "e.g." and "et al."."""
+    return [text[a:b] for a, b in sentence_spans(text)]
 
 
 def match_case(original: str, replacement: str) -> str:

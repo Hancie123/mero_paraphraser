@@ -67,6 +67,54 @@ class EngineTests(unittest.TestCase):
         with self.assertRaises(ParaphraseError):
             paraphrase("x" * 20_001)
 
+    def test_hedges_negations_and_reporting_verbs_are_frozen(self):
+        text = "The results suggest that the method may appear to indicate a problem. We did not show it."
+        for seed in range(15):
+            out = run(text, 100, seed)
+            words = [w.strip(".") for w in out.split(" ")]
+            for word in ("suggest", "may", "appear", "indicate", "show"):
+                self.assertIn(word, words)
+            self.assertTrue("not" in words or "didn't" in words, out)  # a contraction keeps the negation
+            self.assertNotIn("propose", out)
+
+    def test_never_introduces_frozen_words(self):
+        for seed in range(15):
+            self.assertNotIn("propose", run("They pointed out the important problems.", 100, seed))
+
+    def test_part_of_speech_check(self):
+        for seed in range(15):
+            out = run("They will challenge the increase. Take advantage of a sharp increase.", 100, seed)
+            self.assertIn("will challenge", out)
+            self.assertIn("advantage", out)
+            self.assertEqual(out.count("increase"), 2, out)
+
+    def test_names_after_abbreviations_are_protected(self):
+        text = "Dr. Rich Hope met the U.S. Grace team, e.g. Happy Valley staff. Rich was happy."
+        for seed in range(10):
+            out = run(text, 100, seed)
+            for name in ("Rich Hope", "Grace", "Happy Valley", "Rich was"):
+                self.assertIn(name, out)
+
+    def test_stem_check(self):
+        from app.core.rule_engine import _stem
+
+        self.assertEqual(_stem("challenge"), _stem("challenging"))
+        self.assertEqual(_stem("happy"), _stem("happiness"))
+        self.assertEqual(_stem("difficult"), _stem("difficulty"))
+        self.assertNotEqual(_stem("consider"), _stem("consistent"))
+
+    def test_high_strength_changes_most_sentences(self):
+        text = (
+            "The team began the project in March. We need to examine the problems quickly. "
+            "Our customers want a simple tool. The main goal is to help people."
+        )
+        out = run(text, 90, 4)
+        from app.utils.text_utils import split_sentences
+
+        src = set(split_sentences(text))
+        changed = [s for s in split_sentences(out) if s not in src]
+        self.assertGreaterEqual(len(changed), 3, out)
+
 
 if __name__ == "__main__":
     unittest.main()

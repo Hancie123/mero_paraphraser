@@ -24,7 +24,7 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (A, ["huge", "enormous", "massive", "immense"], None),
     (A, ["tiny", "minuscule"], None),
     (A, ["excellent", "outstanding", "superb"], None),
-    (A, ["important", "significant", "crucial", "essential"], None),
+    (A, ["important", "significant", "essential", "crucial"], ["important", "crucial", "essential"]),
     (A, ["difficult", "challenging", "demanding"], None),
     (A, ["easy", "simple", "straightforward", "effortless"], None),
     (A, ["quick", "fast", "rapid", "swift"], None),
@@ -52,7 +52,7 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (A, ["useful", "helpful", "beneficial", "valuable"], None),
     (A, ["interesting", "intriguing", "fascinating", "engaging"], None),
     (A, ["boring", "dull", "tedious", "monotonous"], None),
-    (A, ["accurate", "precise", "exact"], None),
+    (A, ["accurate", "precise", "exact"], ["precise", "exact"]),
     (A, ["sufficient", "adequate", "ample"], None),
     (A, ["typical", "usual", "normal", "customary"], None),
     (A, ["quiet", "silent", "calm", "peaceful"], None),
@@ -61,13 +61,13 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (A, ["rare", "uncommon", "scarce", "infrequent"], None),
     (A, ["brave", "courageous", "bold", "fearless"], None),
     (A, ["careful", "cautious", "attentive", "mindful"], None),
-    (A, ["effective", "successful", "productive", "fruitful"], None),
-    (A, ["serious", "severe", "grave"], None),
+    (A, ["successful", "effective", "productive", "fruitful"], ["fruitful"]),
+    (A, ["serious", "severe", "grave"], ["grave"]),
     (A, ["ready", "prepared"], None),
     # --- adverbs ----------------------------------------------------------
     (R, ["quickly", "rapidly", "swiftly", "promptly"], None),
     (R, ["slowly", "gradually", "steadily"], None),
-    (R, ["often", "frequently", "regularly", "commonly"], None),
+    (R, ["often", "frequently", "commonly", "regularly"], ["often", "frequently", "commonly"]),
     (R, ["usually", "typically", "generally", "normally", "ordinarily"], None),
     (R, ["furthermore", "moreover", "additionally", "in addition"], None),
     (R, ["however", "nevertheless", "nonetheless", "even so"], None),
@@ -85,7 +85,7 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (R, ["perhaps", "maybe", "possibly", "conceivably"], None),
     (R, ["certainly", "definitely", "undoubtedly", "surely"], None),
     (R, ["easily", "effortlessly", "readily", "with ease"], None),
-    (R, ["carefully", "cautiously", "attentively", "meticulously"], None),
+    (R, ["carefully", "cautiously", "with care"], None),
     (R, ["approximately", "roughly", "about", "around"], ["approximately", "roughly"]),
     (R, ["rarely", "seldom", "infrequently", "hardly ever"], None),
     (R, ["happily", "gladly", "cheerfully", "joyfully"], None),
@@ -117,7 +117,7 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (V, ["explain", "clarify", "describe"], None),
     (V, ["improve", "enhance", "boost", "refine"], None),
     (V, ["improved", "enhanced", "boosted", "refined"], None),
-    (V, ["increased", "raised", "expanded"], None),
+    (V, ["increased", "raised", "expanded"], ["expanded"]),
     (V, ["reduce", "decrease", "lower", "cut", "diminish"], ["reduce"]),
     (V, ["reduced", "decreased", "lowered", "diminished"], None),
     (V, ["choose", "select", "pick", "opt for"], ["choose", "select"]),
@@ -135,13 +135,13 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (V, ["prevent", "hinder", "stop"], ["prevent", "hinder"]),
     (V, ["destroy", "ruin", "demolish", "wreck"], None),
     (V, ["repair", "mend", "fix"], ["repair", "mend"]),
-    (V, ["examine", "inspect", "analyze", "investigate", "study"], ["examine", "inspect", "analyze", "investigate"]),
+    (V, ["examine", "analyze", "investigate", "inspect", "study"], ["examine", "inspect", "analyze", "investigate"]),
     (V, ["construct", "assemble", "build"], ["construct", "assemble"]),
     (V, ["solve", "resolve", "fix", "settle"], ["solve", "resolve"]),
     (V, ["gather", "collect", "accumulate"], None),
     (V, ["achieve", "accomplish", "attain", "reach"], ["achieve", "accomplish", "attain"]),
     (V, ["achieved", "attained", "reached"], ["achieved", "attained"]),
-    (V, ["provide", "supply", "offer", "give"], ["provide"]),
+    (V, ["provide", "give", "offer", "supply"], ["provide"]),
     (V, ["consider", "contemplate", "weigh"], ["consider", "contemplate"]),
     (V, ["include", "contain", "comprise", "encompass"], None),
     (V, ["happen", "occur", "take place", "arise"], ["happen", "occur", "arise"]),
@@ -157,7 +157,8 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     # --- nouns ------------------------------------------------------------
     (N, ["problem", "issue", "difficulty", "challenge"], None),
     (N, ["idea", "concept", "notion", "thought"], ["idea", "concept", "notion"]),  # "I thought"
-    (N, ["result", "outcome", "consequence"], ["outcome", "consequence"]),
+    (N, ["outcome", "result"], ["outcome"]),
+    (N, ["consequence", "effect", "result"], ["consequence"]),
     (N, ["goal", "aim", "objective", "target"], ["goal", "objective"]),
     (N, ["method", "approach", "technique", "way"], ["method", "technique"]),
     (N, ["benefit", "advantage", "merit"], ["advantage", "merit"]),
@@ -174,7 +175,7 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (N, ["knowledge", "understanding", "expertise", "awareness"], ["knowledge"]),
     (N, ["skill", "ability", "talent", "capability"], None),
     (N, ["advice", "guidance", "counsel"], ["advice", "guidance"]),
-    (N, ["picture", "image", "photo", "photograph"], ["image", "photo", "photograph"]),
+    (N, ["picture", "image", "photo", "photograph"], ["photo", "photograph"]),
     (N, ["house", "home", "residence", "dwelling"], ["house", "residence", "dwelling"]),
     (N, ["car", "vehicle", "automobile"], None),
     (N, ["journey", "trip", "voyage", "excursion"], ["journey", "voyage", "excursion"]),
@@ -192,19 +193,18 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (N, ["moment", "instant"], ["moment"]),
     (N, ["effort", "attempt", "endeavor"], ["effort", "endeavor"]),
     (N, ["feature", "characteristic", "trait", "attribute"], ["characteristic", "trait"]),
-    (N, ["opinion", "view", "perspective", "viewpoint"], ["opinion", "perspective", "viewpoint"]),
+    (N, ["opinion", "view", "perspective", "viewpoint"], ["perspective", "viewpoint"]),
     (N, ["topic", "subject", "theme"], ["topic", "theme"]),
-    (N, ["rule", "regulation", "guideline", "principle"], ["regulation", "guideline"]),
+    (N, ["rule", "regulation", "guideline", "principle"], ["guideline"]),
     (N, ["danger", "risk", "hazard", "threat"], ["danger", "hazard"]),
     (N, ["growth", "expansion", "development"], ["growth", "expansion"]),
-    (N, ["tool", "device", "instrument"], ["tool", "device"]),
-    (N, ["place", "location", "spot"], ["location"]),
-    (N, ["story", "tale", "narrative", "account"], ["story", "tale", "narrative"]),
+    (N, ["tool", "device", "instrument"], ["device"]),
+    (N, ["story", "tale", "narrative", "account"], ["tale"]),
     (N, ["gift", "present"], ["gift"]),
     (N, ["noise", "racket", "din"], None),
     # --- added for coverage (keys avoid words with a common second part of speech) ---
     (A, ["vital", "essential", "critical"], ["vital"]),
-    (A, ["appropriate", "suitable", "fitting"], ["appropriate", "suitable"]),
+    (A, ["appropriate", "suitable"], None),
     (A, ["relevant", "pertinent", "applicable"], ["relevant", "pertinent"]),
     (A, ["sudden", "abrupt", "unexpected"], ["sudden", "abrupt"]),
     (A, ["constant", "continual", "persistent"], ["constant", "continual"]),
@@ -317,6 +317,11 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (N, ["solution", "remedy", "answer", "fix"], ["solution", "remedy"]),
     (N, ["era", "period", "age", "epoch"], ["era", "epoch"]),
     (N, ["specialist", "expert"], ["specialist"]),
+    (N, ["implication", "consequence", "ramification"], ["implication", "ramification"]),
+    (V, ["transformed", "reshaped", "changed", "altered"], ["transformed", "reshaped"]),
+    (R, ["fundamentally", "radically", "deeply"], ["fundamentally", "radically"]),
+    (V, ["thrive", "flourish", "prosper"], None),
+    (A, ["novel", "new"], ["novel"]),
 ]
 
 IRREGULAR_PLURALS = {
@@ -397,6 +402,7 @@ def synonyms_for(word: str) -> list[str] | None:
 # them ("the results suggest" -> "the results propose") changes the meaning,
 # so they are never replaced and never offered as replacements.
 
+
 def _forms(*bases: str) -> set[str]:
     out: set[str] = set()
     for b in bases:
@@ -407,19 +413,80 @@ def _forms(*bases: str) -> set[str]:
     return out
 
 
-HEDGES = frozenset({
-    "may", "might", "could", "possibly", "perhaps", "probably", "likely", "unlikely", "potentially",
-    "approximately", "roughly", "arguably", "somewhat", "partly", "partially", "apparently",
-    "presumably", "maybe", "conceivably", "seemingly", "supposedly", "allegedly",
-} | _forms("suggest", "appear", "seem", "tend"))
-NEGATIONS = frozenset({
-    "not", "no", "never", "none", "nor", "neither", "nobody", "nothing", "nowhere", "without",
-    "cannot", "unable", "hardly", "barely", "scarcely", "rarely", "seldom", "absent", "infrequently",
-} | _forms("lack", "fail"))
-REPORTING = frozenset(_forms(
-    "indicate", "imply", "propose", "claim", "argue", "assert", "contend", "state", "mention", "note",
-    "report", "recommend", "conclude", "demonstrate", "show", "reveal", "prove", "confirm",
-) | {"shown", "proven", "implied", "implies"})
+HEDGES = frozenset(
+    {
+        "may",
+        "might",
+        "could",
+        "possibly",
+        "perhaps",
+        "probably",
+        "likely",
+        "unlikely",
+        "potentially",
+        "approximately",
+        "roughly",
+        "arguably",
+        "somewhat",
+        "partly",
+        "partially",
+        "apparently",
+        "presumably",
+        "maybe",
+        "conceivably",
+        "seemingly",
+        "supposedly",
+        "allegedly",
+    }
+    | _forms("suggest", "appear", "seem", "tend")
+)
+NEGATIONS = frozenset(
+    {
+        "not",
+        "no",
+        "never",
+        "none",
+        "nor",
+        "neither",
+        "nobody",
+        "nothing",
+        "nowhere",
+        "without",
+        "cannot",
+        "unable",
+        "hardly",
+        "barely",
+        "scarcely",
+        "rarely",
+        "seldom",
+        "absent",
+        "infrequently",
+    }
+    | _forms("lack", "fail")
+)
+REPORTING = frozenset(
+    _forms(
+        "indicate",
+        "imply",
+        "propose",
+        "claim",
+        "argue",
+        "assert",
+        "contend",
+        "state",
+        "mention",
+        "note",
+        "report",
+        "recommend",
+        "conclude",
+        "demonstrate",
+        "show",
+        "reveal",
+        "prove",
+        "confirm",
+    )
+    | {"shown", "proven", "implied", "implies"}
+)
 FROZEN = HEDGES | NEGATIONS | REPORTING
 
 
@@ -431,9 +498,8 @@ def is_frozen(phrase: str) -> bool:
 # --- generated synonyms (app/data/synonyms_extra.json, built by tools/build_lexicon.py) ---
 #
 # Adjectives and adverbs from WordNet, filtered by word frequency. They are broader than the
-# hand-written groups, so only code with a second check uses them: the humanizer swaps a word
-# only when the model itself rated the synonym likely at that spot, and the editor offers them
-# as suggestions the user picks from. The offline rule engine never uses them.
+# hand-written groups, so they are only offered as editor suggestions (click a changed word),
+# where the user picks one in context. The rule engine never swaps a word for them.
 
 EXTRA_FILE = Path(__file__).resolve().parents[1] / "data" / "synonyms_extra.json"
 
@@ -461,12 +527,55 @@ EXTRA_SYNONYMS = _load_extra()
 
 
 def suggestions_for(word: str) -> list[str] | None:
-    """``synonyms_for`` plus generated synonyms. Only for callers that check the context."""
+    """``synonyms_for`` plus generated synonyms, minus frozen words and opposites. For the editor's suggestions."""
+    if is_frozen(word):
+        return None
     found = synonyms_for(word)
-    if found is not None:
-        return found
-    entry = EXTRA_SYNONYMS.get(word)
-    return list(entry[1]) if entry else None
+    if found is None:
+        entry = EXTRA_SYNONYMS.get(word)
+        found = entry[1] if entry else None
+    alts = [a for a in found or [] if not is_frozen(a) and not opposed(word, a)]
+    return alts or None
+
+
+# --- opposites (app/data/antonyms.json, built by tools/build_antonyms.py) -------
+#
+# A synonym that is the opposite of the word it replaces, or of a word next to it
+# ("strong and weak" -> "strong and powerless"), is never used or suggested.
+
+ANTONYM_FILE = Path(__file__).resolve().parents[1] / "data" / "antonyms.json"
+
+
+def _load_antonyms(path: Path = ANTONYM_FILE) -> dict[str, frozenset[str]]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}  # optional, like synonyms_extra.json
+    return {
+        w: frozenset(o for o in opp if isinstance(o, str))
+        for w, opp in data.items()
+        if not w.startswith("_") and isinstance(opp, list)
+    }
+
+
+ANTONYMS = _load_antonyms()
+
+
+def _bases(word: str) -> set[str]:
+    """``word`` plus naive singular / base forms, so "decreases" matches "decrease"."""
+    out = {word}
+    for suf in ("es", "s", "ed", "d", "ing"):
+        if word.endswith(suf) and len(word) - len(suf) >= 3:
+            out.add(word[: -len(suf)])
+    return out
+
+
+def opposed(a: str, b: str) -> bool:
+    """True if words ``a`` and ``b`` (lowercase) are opposites, e.g. "increase" / "decreases"."""
+    left, right = _bases(a), _bases(b)
+    return any(right & ANTONYMS.get(x, frozenset()) for x in left) or any(
+        left & ANTONYMS.get(y, frozenset()) for y in right
+    )
 
 
 # Slang the rewrite never picks.
@@ -632,6 +741,9 @@ GENERAL_PHRASES = _table(
         "rely on": ["depend on", "count on"],
         "relies on": ["depends on"],
         "relied on": ["depended on"],
+        "strike the right balance": ["find the right balance"],
+        "strike a balance": ["find a balance"],
+        "in conclusion": ["to conclude", "in closing"],
     }
 )
 

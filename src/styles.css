@@ -316,6 +316,55 @@ button:disabled {
   justify-content: center;
 }
 
+.dialog-wide {
+  width: min(560px, 100%);
+}
+.dialog-wide .dialog-body {
+  max-height: min(70vh, 640px);
+  overflow-y: auto;
+}
+.prefs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 16px;
+}
+.prefs-field span {
+  font-weight: 600;
+}
+.prefs-field small {
+  font-size: 12px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.prefs-field textarea {
+  flex: none;
+  height: 88px;
+  padding: 6px 10px;
+  line-height: 20px;
+  resize: vertical;
+  background: var(--ctrl);
+  border: 1px solid var(--stroke-ctrl);
+  border-bottom-color: var(--stroke-ctrl-bottom);
+  border-radius: 4px;
+}
+.prefs-field textarea:focus-visible {
+  border-bottom: 2px solid var(--accent);
+}
+
+.picker-actions {
+  border-top: 1px solid var(--stroke-divider);
+  margin-top: 4px;
+  padding-top: 4px;
+  display: flex;
+  flex-direction: column;
+}
+.picker .picker-actions button {
+  font-size: 12px;
+  min-height: 28px;
+  color: var(--text-2);
+}
+
 .about-list {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -450,7 +499,7 @@ button:disabled {
 .strength input[type="range"] {
   -webkit-appearance: none;
   appearance: none;
-  width: 180px;
+  width: 130px;
   height: 32px;
   margin: 0;
   background: transparent;
@@ -884,4 +933,80 @@ textarea:focus-visible {
 
 .about-list .error {
   color: var(--err);
+}
+
+/* Result view switch (Edits | Compare) */
+.seg-toggle {
+  display: inline-flex;
+  padding: 2px;
+  margin-right: 8px;
+  border-radius: 6px;
+  background: var(--ctrl-alt);
+  border: 1px solid var(--stroke-ctrl);
+}
+.seg-toggle button {
+  height: 26px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+.seg-toggle button:hover {
+  background: var(--subtle-hover);
+}
+.seg-toggle button.on {
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
+}
+
+/* Word-by-word comparison */
+.diff-del,
+.diff-ins {
+  text-decoration: none;
+  border-radius: 2px;
+}
+.diff-del {
+  color: var(--err);
+  background: color-mix(in srgb, var(--err) 12%, transparent);
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.diff-ins {
+  color: var(--text);
+  background: var(--chg-added-tint);
+  box-shadow: inset 0 -2px 0 var(--chg-added);
+}
+.legend-item.diff-key-del {
+  --c: var(--err);
+  --t: color-mix(in srgb, var(--err) 12%, transparent);
+}
+.legend-item.diff-key-ins {
+  --c: var(--chg-added);
+  --t: var(--chg-added-tint);
+}
+
+/* Drop a file onto the Original box */
+.pane {
+  position: relative;
+}
+.pane.dropping {
+  border-color: var(--accent);
+}
+.drop-hint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  margin: 8px;
+  border: 2px dashed var(--accent);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--card) 88%, transparent);
+  color: var(--accent-text);
+  font-weight: 600;
+  pointer-events: none;
 }

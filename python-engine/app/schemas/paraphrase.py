@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 
 from ..core.config import MAX_CHARS, MODES
+from ..core.preferences import MAX_ITEMS, MAX_LEN, NONE, Preferences
 
 
 class ParaphraseError(ValueError):
@@ -17,6 +18,9 @@ class ParaphraseRequest:
     mode: str = "humanize"
     strength: int = 50
     seed: int | None = None
+    prefs: Preferences = NONE
+    # How much Layer 4b restructures sentences (0-100), separate from ``strength`` (word changes).
+    restructure: int = 50
 
     @classmethod
     def from_dict(cls, d: dict) -> ParaphraseRequest:
@@ -32,8 +36,39 @@ class ParaphraseRequest:
             strength = max(0, min(100, int(d.get("strength", 50))))
         except (TypeError, ValueError):
             raise ParaphraseError("strength must be a number from 0 to 100") from None
+        try:  # older clients send only "strength"; it then sets both
+            restructure = max(0, min(100, int(d.get("restructure", strength))))
+        except (TypeError, ValueError):
+            raise ParaphraseError("restructure must be a number from 0 to 100") from None
         seed = d.get("seed")
-        return cls(text, mode, strength, None if seed is None else int(seed))
+        return cls(text, mode, strength, None if seed is None else int(seed), _preferences(d), restructure)
+
+
+def _strings(value: object, what: str) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(v, str) for v in value):
+        raise ParaphraseError(f"{what} must be a list of strings")
+    if len(value) > MAX_ITEMS:
+        raise ParaphraseError(f"at most {MAX_ITEMS} {what}")
+    for v in value:
+        if len(v) > MAX_LEN:
+            raise ParaphraseError(f"{what} must be at most {MAX_LEN} characters each")
+    return value
+
+
+def _preferences(d: dict) -> Preferences:
+    """``locked_terms`` and ``banned``: lists of strings; ``preferred``: {word: replacement}."""
+    preferred = d.get("preferred") or {}
+    if not isinstance(preferred, dict):
+        raise ParaphraseError("preferred must be an object of word -> replacement")
+    words = _strings(list(preferred), "preferred words")
+    repls = _strings(list(preferred.values()), "preferred replacements")
+    return Preferences.build(
+        _strings(d.get("locked_terms"), "locked terms"),
+        dict(zip(words, repls)),
+        _strings(d.get("banned"), "banned words"),
+    )
 
 
 @dataclass
@@ -111,10 +146,12 @@ class ChunkResult:
     issues: list[str] = field(default_factory=list)
     critical: bool = False
     kept_original: bool = False
+    restored_sentences: int = 0  # sentences put back because the rewrite lost a number, negation or hedge
     # human-like output (humanizer.py)
     drafts: int = 0  # drafts written per attempt
     human_score: float | None = None  # higher reads more human
     restructured: int = 0  # Layer 5 edits against AI-typical structure
+    reshaped: int = 0  # Layer 4b sentence transformations (sentence_rewriter.py)
     patterns: list[str] = field(default_factory=list)  # AI-typical structures still present
 
 

@@ -15,6 +15,7 @@ import random
 import re
 from dataclasses import dataclass
 
+from ..core.preferences import NONE, Preferences
 from ..utils.text_utils import wants_an
 from .humanizer import restructure
 
@@ -84,11 +85,11 @@ _PLAIN_RES = [
 ]
 
 
-def _plain_words(text: str, academic: bool) -> tuple[str, int]:
+def _plain_words(text: str, academic: bool, prefs: Preferences = NONE) -> tuple[str, int]:
     count = 0
 
     for pattern, repl, skip_academic in _PLAIN_RES:
-        if skip_academic and academic:
+        if (skip_academic and academic) or not prefs.allows(repl):
             continue
 
         def sub(m: re.Match) -> str:
@@ -178,7 +179,7 @@ SIGNATURES: list[tuple[str, str, bool]] = [
 _SIGNATURE_RES = [(re.compile(r"\b" + pat + r"\b", re.IGNORECASE), repl, skip) for pat, repl, skip in SIGNATURES]
 
 
-def _signatures(text: str, academic: bool) -> tuple[str, int]:
+def _signatures(text: str, academic: bool, prefs: Preferences = NONE) -> tuple[str, int]:
     count = 0
     for pattern, repl, skip_academic in _SIGNATURE_RES:
         if skip_academic and academic:
@@ -187,7 +188,7 @@ def _signatures(text: str, academic: bool) -> tuple[str, int]:
         def sub(m: re.Match) -> str:
             nonlocal count
             new = m.expand(repl)
-            if new.lower() == m.group().lower():
+            if new.lower() == m.group().lower() or not prefs.allows(new):
                 return m.group()
             count += 1
             if not new:
@@ -265,12 +266,12 @@ class Refined:
     dashes: int = 0  # em dashes replaced
 
 
-def _replace_phrases(text: str, source: str) -> tuple[str, int]:
+def _replace_phrases(text: str, source: str, prefs: Preferences = NONE) -> tuple[str, int]:
     count = 0
     src = source.lower()
     for phrase, repl in STOCK_PHRASES.items():
-        if phrase.strip(", ") in src:
-            continue  # the author wrote it; leave it alone
+        if phrase.strip(", ") in src or not prefs.allows(repl):
+            continue  # the author wrote it (leave it alone), or the user banned the replacement
 
         def sub(m: re.Match) -> str:
             nonlocal count
@@ -297,9 +298,19 @@ def _dedupe(m: re.Match) -> str:
 
 class LanguageRefiner:
     def refine(
-        self, text: str, source: str, seed: int | None = None, *, humanize: bool = False, academic: bool = False
+        self,
+        text: str,
+        source: str,
+        seed: int | None = None,
+        *,
+        humanize: bool = False,
+        academic: bool = False,
+        prefs: Preferences = NONE,
     ) -> Refined:
-        """``academic``: the source reads as academic writing (Layer 2), so precise words stay."""
+        """``academic``: the source reads as academic writing (Layer 2), so precise words stay.
+
+        ``prefs``: replacements that would put a word the user banned into the text are skipped.
+        """
         fixes = 0
         restructured = 0
         if humanize:
@@ -319,9 +330,9 @@ class LanguageRefiner:
 
             text = re.sub(pattern, wrapped, current, flags=flags)
 
-        text, phrases = _replace_phrases(text, source)
-        text, sig = _signatures(text, academic)
-        text, plain = _plain_words(text, academic)
+        text, phrases = _replace_phrases(text, source, prefs)
+        text, sig = _signatures(text, academic, prefs)
+        text, plain = _plain_words(text, academic, prefs)
         phrases += plain + sig
         text, dashes = clean_dashes(text)
         if "  " not in source:

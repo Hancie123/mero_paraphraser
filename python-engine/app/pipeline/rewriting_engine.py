@@ -8,12 +8,15 @@ keep the one that reads most human (see humanizer.py).
 from __future__ import annotations
 
 from ..core import rule_engine
+from ..core.preferences import NONE, Preferences
 
 
 class RewritingEngine:
-    def drafts(self, text: str, strength: int, seed: int | None, retry: bool = False, n: int = 1) -> list[str]:
+    def drafts(
+        self, text: str, strength: int, seed: int | None, retry: bool = False, n: int = 1, prefs: Preferences = NONE
+    ) -> list[str]:
         """``n`` different rewrites of ``text``. A retry shifts the seeds so it gets new wording."""
         bump = 1 if retry else 0
         # One seed per draft; 101 is an arbitrary stride that keeps drafts apart.
         seeds = [None if seed is None else seed + k * 101 + bump for k in range(n)]
-        return [rule_engine.paraphrase(text, strength, s)["text"] for s in seeds]
+        return [rule_engine.paraphrase(text, strength, s, prefs)["text"] for s in seeds]
