@@ -17,7 +17,6 @@
 [How it works](#how-it-works) ·
 [Getting started](#getting-started) ·
 [Building](#building-a-release) ·
-[Customizing](#customizing) ·
 [Contributing](#contributing)
 
 </div>
@@ -110,35 +109,6 @@ pnpm tauri:dev
 
 To use a specific Python interpreter, set `MERO_PYTHON` to its path.
 
-### Use the engine from the command line
-
-```bash
-python python-engine/app/main.py --report --text "I don't think it's a big problem."
-```
-
-| Option | Description |
-|---|---|
-| `--text` | Text to paraphrase (required) |
-| `--strength` | 0–100, how much to change (default `50`) |
-| `--seed` | Fixed seed for repeatable output |
-| `--report` | Also print the eight-layer report and explanations |
-
-## Testing
-
-```bash
-pnpm test:engine                    # Python engine unit tests
-pnpm typecheck                      # TypeScript
-cargo test --manifest-path src-tauri/Cargo.toml   # Rust ↔ engine round trip
-```
-
-To measure how human the output reads:
-
-```bash
-python python-engine/tools/eval_humanness.py --strength 60
-```
-
-This runs every passage in `tools/samples/*.txt` through the pipeline. It reports burstiness, AI patterns before and after, the human score and the fact-check pass rate. If `GPTZERO_API_KEY` is set, it also queries GPTZero. That's a paid API, and it sends the text to GPTZero's servers.
-
 ## Building a release
 
 ```bash
@@ -188,31 +158,6 @@ mero_paraphraser/
     ├── tests/
     └── tools/                         # eval_humanness.py, build_lexicon.py, samples/
 ```
-
-### Engine protocol
-
-The engine reads one JSON request per line on stdin and writes one JSON response per line on stdout. It exits when stdin closes, so it never outlives the app.
-
-```jsonc
-// request
-{"id": 1, "cmd": "paraphrase", "text": "…", "mode": "humanize", "strength": 50, "seed": 7}
-// response
-{"id": 1, "ok": true, "result": {"text": "…", "segments": [ … ], "stats": { … }, "report": { … }}}
-{"id": 1, "ok": false, "error": "…"}
-```
-
-Commands: `ping`, `paraphrase`, `read_docx`, `export_docx`, `clean_docx`.
-
-## Customizing
-
-| What | Where |
-|---|---|
-| Synonym groups | `GROUPS` in `python-engine/app/core/lexicon.py`. Use `keys` to list only the words that are safe to replace, and list ambiguous words (such as "show", which can also be a noun) only as replacements |
-| Phrase rewrites and contractions | `GENERAL_PHRASES` and `CONTRACT_PHRASES` in the same file |
-| Words never offered as synonyms | `AVOID_WORDS` in `python-engine/app/core/config.py` |
-| Editor suggestions (generated) | Run `tools/build_lexicon.py` after `pip install -r python-engine/tools/requirements-build.txt`. To drop a bad pair, add it to `EXCLUDE` or `_BAD` in the script |
-
-Run `pnpm test:engine` after editing the lexicon. The tests catch duplicate keys.
 
 ## Contributing
 
