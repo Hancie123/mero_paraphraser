@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Segment } from "./api";
-import { countWords, replaceSegment, wantsAn } from "./text";
+import { countWords, replaceRange, replaceSegment, wantsAn } from "./text";
 
 const join = (segments: Segment[]) => segments.map((s) => s.text).join("");
 
@@ -78,5 +78,35 @@ describe("countWords", () => {
     ["नमस्ते संसार", 2],
   ])("%j has %i words", (text, expected) => {
     expect(countWords(text)).toBe(expected);
+  });
+});
+
+describe("replaceRange", () => {
+  const join = (segs: Segment[]) => segs.map((s) => s.text).join("");
+  const extra = { kind: "Synonym", level: "word" as const, alternatives: [] };
+
+  it("splits an unchanged segment around one word", () => {
+    const { segments, index } = replaceRange([{ text: "We found many problems here." }], 14, 22, "issues", extra);
+    expect(join(segments)).toBe("We found many issues here.");
+    expect(segments[index]).toMatchObject({ text: "issues", original: "problems", level: "word" });
+    expect(segments).toHaveLength(3);
+  });
+
+  it("widens to a changed segment it overlaps, keeping the source wording", () => {
+    const segs: Segment[] = [{ text: "The " }, { text: "firm", original: "company" }, { text: " grew fast." }];
+    const { segments, index } = replaceRange(segs, 0, 13, "The business expanded", { ...extra, level: "sentence" });
+    expect(join(segments)).toBe("The business expanded fast.");
+    expect(segments[index].original).toBe("The company grew");
+  });
+
+  it("replaces a range at the very end", () => {
+    const { segments } = replaceRange([{ text: "Prices rose." }], 0, 12, "Prices went up.", extra);
+    expect(join(segments)).toBe("Prices went up.");
+    expect(segments).toHaveLength(1);
+  });
+
+  it("fixes the article before the new word", () => {
+    const { segments } = replaceRange([{ text: "It is a big deal." }], 8, 11, "enormous", extra);
+    expect(join(segments)).toBe("It is an enormous deal.");
   });
 });

@@ -15,17 +15,18 @@ async fn call(engine: &State<'_, SharedEngine>, request: Value) -> Result<Value,
         .map_err(|e| format!("engine task failed: {e}"))?
 }
 
-#[tauri::command]
-async fn paraphrase(
-    engine: State<'_, SharedEngine>,
+/// A paraphrase-style engine request: the settings plus the user's word preferences.
+fn rewrite_request(
+    cmd: &str,
     text: String,
     mode: String,
     strength: u8,
     restructure: Option<u8>,
     seed: Option<u64>,
     prefs: Option<Value>,
-) -> Result<Value, String> {
-    let mut request = json!({ "cmd": "paraphrase", "text": text, "mode": mode, "strength": strength, "seed": seed });
+) -> Value {
+    let mut request =
+        json!({ "cmd": cmd, "text": text, "mode": mode, "strength": strength, "seed": seed });
     // How much sentences are restructured; without it the engine uses `strength` for both.
     if let Some(restructure) = restructure {
         request["restructure"] = json!(restructure);
@@ -38,7 +39,50 @@ async fn paraphrase(
             }
         }
     }
+    request
+}
+
+#[tauri::command]
+async fn paraphrase(
+    engine: State<'_, SharedEngine>,
+    text: String,
+    mode: String,
+    strength: u8,
+    restructure: Option<u8>,
+    seed: Option<u64>,
+    prefs: Option<Value>,
+) -> Result<Value, String> {
+    let request = rewrite_request("paraphrase", text, mode, strength, restructure, seed, prefs);
     call(&engine, request).await
+}
+
+/// A few different rewrites of a selected sentence or phrase.
+#[tauri::command]
+async fn rephrase(
+    engine: State<'_, SharedEngine>,
+    text: String,
+    mode: String,
+    strength: u8,
+    restructure: Option<u8>,
+    seed: Option<u64>,
+    prefs: Option<Value>,
+) -> Result<Value, String> {
+    let request = rewrite_request("rephrase", text, mode, strength, restructure, seed, prefs);
+    call(&engine, request).await
+}
+
+/// Similar words for one word of the result, grouped by meaning.
+#[tauri::command]
+async fn suggest(
+    engine: State<'_, SharedEngine>,
+    word: String,
+    context: String,
+) -> Result<Value, String> {
+    call(
+        &engine,
+        json!({ "cmd": "suggest", "word": word, "context": context }),
+    )
+    .await
 }
 
 /// Builds a .docx of `text` with no document properties (base64).
@@ -126,6 +170,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             paraphrase,
+            rephrase,
+            suggest,
             engine_status,
             export_docx,
             read_docx,

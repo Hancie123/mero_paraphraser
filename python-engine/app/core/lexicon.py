@@ -27,7 +27,8 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (A, ["important", "significant", "essential", "crucial"], ["important", "crucial", "essential"]),
     (A, ["difficult", "challenging", "demanding"], None),
     (A, ["easy", "simple", "straightforward", "effortless"], None),
-    (A, ["quick", "fast", "rapid", "swift"], None),
+    # "fast"/"quick" never change: "a rapid app", "a fast question" read oddly.
+    (A, ["quick", "fast", "rapid", "swift"], ["rapid", "swift"]),
     (A, ["happy", "glad", "pleased", "delighted"], None),
     (A, ["sad", "unhappy", "sorrowful", "downcast"], None),
     (A, ["beautiful", "lovely", "gorgeous", "stunning"], None),
@@ -44,7 +45,8 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (A, ["dangerous", "hazardous", "risky", "perilous"], None),
     (A, ["angry", "irritated", "annoyed"], None),
     (A, ["afraid", "scared", "frightened", "fearful"], None),
-    (A, ["tired", "exhausted", "weary", "fatigued"], None),
+    # "tired" stays: "exhausted" is stronger, "weary" old-fashioned.
+    (A, ["tired", "exhausted", "weary", "fatigued"], ["weary", "fatigued"]),
     (A, ["rich", "wealthy", "affluent", "prosperous"], None),
     (A, ["honest", "truthful", "sincere", "candid"], None),
     (A, ["strong", "powerful", "robust"], None),
@@ -55,7 +57,8 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (A, ["accurate", "precise", "exact"], ["precise", "exact"]),
     (A, ["sufficient", "adequate", "ample"], None),
     (A, ["typical", "usual", "normal", "customary"], None),
-    (A, ["quiet", "silent", "calm", "peaceful"], None),
+    # "quiet" stays: "the shops were quiet" means not busy, not silent or calm.
+    (A, ["quiet", "silent", "calm", "peaceful"], ["silent"]),
     (A, ["famous", "renowned", "well-known", "celebrated"], None),
     (A, ["possible", "feasible", "achievable", "viable"], None),
     (A, ["rare", "uncommon", "scarce", "infrequent"], None),
@@ -165,7 +168,8 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (N, ["opportunity", "chance", "opening", "possibility"], ["opportunity"]),
     (N, ["purpose", "intention", "aim", "objective"], ["purpose", "intention"]),
     (N, ["example", "instance"], None),
-    (N, ["people", "individuals", "persons", "folks"], ["people", "individuals"]),
+    # No "persons": it reads stiff and legal ("kept persons inside").
+    (N, ["people", "individuals"], ["people", "individuals"]),
     (N, ["kid", "child", "youngster"], ["kid", "youngster"]),
     (N, ["job", "occupation", "profession", "career"], ["occupation", "profession"]),
     (N, ["task", "assignment", "duty", "chore"], ["task", "assignment"]),
@@ -187,7 +191,8 @@ GROUPS: list[tuple[str, list[str], list[str] | None]] = [
     (N, ["amount", "quantity"], ["quantity"]),
     (N, ["part", "portion", "section", "segment"], ["portion", "section", "segment"]),
     (N, ["customer", "client", "patron", "buyer"], ["customer", "client", "patron"]),
-    (N, ["teacher", "instructor", "educator", "tutor"], None),
+    # "teacher" stays: "his educator" is the wrong register.
+    (N, ["teacher", "instructor", "educator", "tutor"], ["instructor", "educator"]),
     (N, ["student", "learner", "pupil"], None),
     (N, ["friend", "companion", "pal", "buddy"], None),
     (N, ["moment", "instant"], ["moment"]),
@@ -536,6 +541,32 @@ def suggestions_for(word: str) -> list[str] | None:
         found = entry[1] if entry else None
     alts = [a for a in found or [] if not is_frozen(a) and not opposed(word, a)]
     return alts or None
+
+
+# --- word frequency (app/data/word_freq.json, built by tools/build_freq.py) ------
+#
+# Zipf frequencies of the words in GROUPS. The rule engine prefers a synonym about as
+# common as the word it replaces, so "tired" does not become "weary".
+
+FREQ_FILE = Path(__file__).resolve().parents[1] / "data" / "word_freq.json"
+
+
+def _load_freq(path: Path = FREQ_FILE) -> dict[str, float]:
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}  # optional: without it no candidate is down-ranked
+    freq = data.get("zipf")
+    return {w: float(f) for w, f in freq.items() if isinstance(f, (int, float))} if isinstance(freq, dict) else {}
+
+
+WORD_FREQ = _load_freq()
+
+
+def much_rarer(candidate: str, original: str, gap: float) -> bool:
+    """True if ``candidate`` is more than ``gap`` Zipf points rarer than ``original`` (unknown: False)."""
+    a, b = WORD_FREQ.get(candidate.lower()), WORD_FREQ.get(original.lower())
+    return a is not None and b is not None and b - a > gap
 
 
 # --- opposites (app/data/antonyms.json, built by tools/build_antonyms.py) -------

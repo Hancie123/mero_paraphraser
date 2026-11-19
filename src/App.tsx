@@ -15,6 +15,8 @@ import {
   openLogFolder,
   paraphrase,
   readDocx,
+  rephrase,
+  suggest,
   toBase64,
   type EngineState,
   type Mode,
@@ -23,13 +25,32 @@ import {
 } from "./api";
 import { AboutDialog, EngineBadge, ShortcutsDialog, WordPrefsDialog } from "./Dialogs";
 import MenuBar, { type Menu } from "./MenuBar";
-import Picker, { type PickerPos } from "./Picker";
+import Picker, { SuggestPicker, type PickerPos, type SuggestGroup, type SuggestTarget } from "./Picker";
 import { caretAfterChange, useHistory } from "./history";
 import { addTo, loadPrefs, savePrefs, type WordPrefs } from "./prefs";
 import ResultPane, { type ResultView } from "./ResultPane";
-import { countWords, replaceSegment } from "./text";
+import { countWords, replaceRange, replaceSegment } from "./text";
 
 type DialogKind = "about" | "shortcuts" | "prefs" | null;
+
+/** The open "similar words" / "rephrase" popup and what the engine has sent for it so far. */
+type Suggestion = { target: SuggestTarget; groups: SuggestGroup[]; loading: boolean; note?: string; error?: string };
+
+/** The sentence around characters `start`..`end` of `text` (gives the word picker its context). */
+function sentenceAround(text: string, start: number, end: number): string {
+  const stop = /[.!?\n]/;
+  let a = start;
+  while (a > 0 && !stop.test(text[a - 1])) a--;
+  let b = end;
+  while (b < text.length && !stop.test(text[b])) b++;
+  return text.slice(a, b + 1).trim();
+}
+
+/** Where a popup opens below `rect`, kept on screen. */
+const below = (rect: DOMRect) => ({
+  x: Math.max(8, Math.min(rect.left, window.innerWidth - 300)),
+  y: Math.min(rect.bottom + 6, window.innerHeight - 120),
+});
 
 const STRENGTH_LABELS = ["Light", "Moderate", "Strong"];
 const levelLabel = (value: number) => STRENGTH_LABELS[Math.min(2, Math.floor(value / 34))];
@@ -64,6 +85,8 @@ export default function App() {
   const [logFile, setLogFile] = useState<string | null>(null);
   const [highlight, setHighlight] = useState(true);
   const [picker, setPicker] = useState<PickerPos | null>(null);
+  const [suggestion, setSuggestion] = useState<Suggestion | null>(null);
+  const suggestId = useRef(0); // ignores answers to a popup that was closed or replaced
   const [copied, setCopied] = useState(false);
   const [zoom, setZoom] = useState(1);
   const [dialog, setDialog] = useState<DialogKind>(null);
@@ -351,8 +374,9 @@ export default function App() {
       const ctrl = e.ctrlKey || e.metaKey;
       if (e.key === "Escape") {
         // Esc closes a popup first; with nothing open it cancels a running paraphrase.
-        if (picker || dialog) {
+        if (picker || dialog || suggestion) {
           setPicker(null);
+          setSuggestion(null);
           setDialog(null);
         } else if (busy) cancel();
         return;
@@ -376,12 +400,78 @@ export default function App() {
     return () => window.removeEventListener("keydown", onKey);
   });
 
-  const openPicker = (index: number, el: HTMLElement) => {
+  const openPicker = useCallback((index: number, el: HTMLElement) => {
+    suggestId.current++;
+    setSuggestion(null);
     const r = el.getBoundingClientRect();
     const x = Math.min(r.left, window.innerWidth - 240);
     setPicker({ index, x: Math.max(8, x), y: r.bottom + 6 });
-  };
+  }, []);
   const closePicker = useCallback(() => setPicker(null), []);
+
+  // Any word: similar words, grouped by meaning.
+  const openWord = useCallback(
+    (start: number, end: number, el: HTMLElement) => {
+      if (busy) return;
+      const text = output.slice(start, end);
+      const id = ++suggestId.current;
+      setPicker(null);
+      const target: SuggestTarget = { start, end, text, kind: "word", ...below(el.getBoundingClientRect()) };
+      setSuggestion({ target, groups: [], loading: true });
+      suggest(text, sentenceAround(output, start, end))
+        .then((r) => {
+          if (id !== suggestId.current) return;
+          const groups = r.senses.map((s) => ({ label: s.pos ? `${s.pos} · ${s.gloss}` : "", options: s.words }));
+          setSuggestion({ target, groups, loading: false, note: r.note || undefined });
+        })
+        .catch(
+          (e) => id === suggestId.current && setSuggestion({ target, groups: [], loading: false, error: String(e) }),
+        );
+    },
+    [busy, output],
+  );
+
+  // A selected sentence or phrase: a few rephrased versions.
+  const openRange = useCallback(
+    (start: number, end: number, rect: DOMRect) => {
+      if (busy) return;
+      const text = output.slice(start, end);
+      const id = ++suggestId.current;
+      setPicker(null);
+      const target: SuggestTarget = { start, end, text, kind: "sentence", ...below(rect) };
+      setSuggestion({ target, groups: [], loading: true });
+      rephrase(text, mode, strength, restructure, Math.floor(Math.random() * 2 ** 31), prefs)
+        .then(
+          (r) =>
+            id === suggestId.current &&
+            setSuggestion({ target, groups: [{ label: "", options: r.alternatives }], loading: false }),
+        )
+        .catch(
+          (e) => id === suggestId.current && setSuggestion({ target, groups: [], loading: false, error: String(e) }),
+        );
+    },
+    [busy, output, mode, strength, restructure, prefs],
+  );
+  const closeSuggestion = useCallback(() => {
+    suggestId.current++;
+    setSuggestion(null);
+  }, []);
+
+  const chooseSuggestion = (text: string) => {
+    if (!suggestion) return;
+    const { target, groups } = suggestion;
+    const word = target.kind === "word";
+    const { segments: next, index } = replaceRange(segments, target.start, target.end, text, {
+      kind: word ? "Synonym" : "Reworded",
+      level: word ? "word" : "sentence",
+    });
+    // Later clicks on the new span offer the other options and the original wording.
+    const others = [...groups.flatMap((g) => g.options), target.text, next[index].original ?? ""];
+    next[index].alternatives = [...new Set(others)].filter((a) => a && a !== text).slice(0, 10);
+    setSegments(next);
+    closeSuggestion();
+    window.getSelection()?.removeAllRanges();
+  };
 
   const choose = (text: string) => {
     if (!picker) return;
@@ -593,6 +683,8 @@ export default function App() {
             onUseOutput={useOutput}
             onCopy={() => void copy()}
             onOpenPicker={openPicker}
+            onWordClick={openWord}
+            onSelectRange={openRange}
           />
         </main>
 
@@ -619,6 +711,26 @@ export default function App() {
           e.target.value = "";
         }}
       />
+
+      {suggestion && (
+        <SuggestPicker
+          target={suggestion.target}
+          groups={suggestion.groups}
+          loading={suggestion.loading}
+          note={suggestion.note}
+          error={suggestion.error}
+          onChoose={chooseSuggestion}
+          onRetry={
+            suggestion.target.kind === "sentence"
+              ? () => {
+                  const t = suggestion.target;
+                  openRange(t.start, t.end, new DOMRect(t.x, t.y - 6, 0, 0));
+                }
+              : undefined
+          }
+          onClose={closeSuggestion}
+        />
+      )}
 
       {picker && active && (
         <Picker

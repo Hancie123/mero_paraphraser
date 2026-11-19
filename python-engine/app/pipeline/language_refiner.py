@@ -16,7 +16,7 @@ import re
 from dataclasses import dataclass
 
 from ..core.preferences import NONE, Preferences
-from ..utils.text_utils import wants_an
+from ..utils.text_utils import ends_with_abbreviation, wants_an
 from .humanizer import restructure
 
 # Stock phrases -> plainer wording ("" removes the phrase). Only applied when the source didn't use them.
@@ -254,7 +254,6 @@ def clean_dashes(text: str) -> tuple[str, int]:
 
 
 _KEEP_DOUBLES = {"had", "that", "is", "do", "very"}
-_ABBREV_BEFORE = re.compile(r"\b(?:e\.g|i\.e|etc|al|vs|cf|approx|fig|no|vol|pp|p)\.$", re.IGNORECASE)
 
 
 @dataclass
@@ -346,7 +345,7 @@ class LanguageRefiner:
         apply(r"\b([Aa]n?)(\s+)([a-z][a-z-]*)", lambda m, _: _article(m))  # a/an before lowercase words
 
         def capital(m: re.Match, current: str) -> str:
-            if _ABBREV_BEFORE.search(current[: m.start(2)].rstrip()):
+            if ends_with_abbreviation(current[: m.start(2)]):  # "the U.S. office"
                 return m.group(0)
             return m.group(1) + m.group(2).upper()
 

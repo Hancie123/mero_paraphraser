@@ -236,6 +236,12 @@ def _inflect(lemma: str, form: str, after_aux: bool) -> str:
     }[form]
 
 
+# Targets that read fine with nothing after them: "they decided after ..." works, "they chose
+# after ..." does not. Others need one of _TARGET_FOLLOW after them ("chose to", "assumed that").
+_STANDALONE = frozenset({"decide", "try", "contribute", "explain", "act", "conclude", "agree"})
+_TARGET_FOLLOW = frozenset({"that", "to", "between", "among", "whether", "what", "which", "how"})
+
+
 def light_verb(sent: Sentence) -> str | None:
     low = sent.low
     for verb, noun, target, drops, needs_object in _LIGHT:
@@ -254,6 +260,8 @@ def light_verb(sent: Sentence) -> str | None:
                 continue
             if nxt in ("of",) and not dropped:
                 continue  # "made a decision of ..." reads oddly as "decided of"
+            if not needs_object and target not in _STANDALONE and nxt not in _TARGET_FOLLOW:
+                continue  # "make a choice after they ..." -> "choose after they ...": "choose" needs an object
             after_aux = i > 0 and sent.tags[i - 1] in ("HV", "BE")
             if sent.tags[i - 1 if i else 0] == "BE" and form == "past":
                 continue  # passive "was made a ..." - leave it
@@ -365,8 +373,21 @@ def cleft(sent: Sentence) -> str | None:
 
 _NO_PASSIVE = frozenset(
     "have get be become seem let go come lack resemble cost weigh fit suit mean want need like love hate know "
-    "feel say tell ask think hope wish include contain".split()
+    "feel say tell ask think hope wish include contain last remain stay sound look taste smell equal total "
+    "reach number span".split()
 )
+# A phrase after the object with one of these belongs to the object, so it moves with it:
+# "approved the budget for the new school" -> "The budget for the new school was approved ...".
+_OBJECT_PREPS = {"of", "for", "on", "about"}
+# These usually attach to the verb ("tested the app across five countries") and may stay at the end.
+_VERB_PREPS = {"during", "after", "before", "since", "until", "across", "throughout", "despite", "via", "through",
+               "from"}  # fmt: skip
+# Anything else ("with users", "in Texas", "to the board") could belong to either, so voice refuses.
+_BARE_TIME_LEAD = {"last", "this", "next", "every", "each", "that"}
+_BARE_TIME = {"yesterday", "today", "tomorrow", "recently", "annually", "weekly", "daily", "monthly"}
+
+
+_PLURAL_WORDS = frozenset("people children men women police mice feet teeth geese criteria".split())
 
 
 def _number(sent: Sentence, i: int, j: int) -> str:
@@ -375,6 +396,8 @@ def _number(sent: Sentence, i: int, j: int) -> str:
     if sent.tags[i] in ("PRP", "PRPO"):
         return "pl" if head in ("we", "they", "you", "us", "them", "i", "me") else "sg"
     if "and" in sent.low[i:j]:
+        return "pl"
+    if head in _PLURAL_WORDS:
         return "pl"
     return "pl" if sent.tags[j - 1] == "NNS" or (head.endswith("s") and not head.endswith("ss")) else "sg"
 
@@ -391,19 +414,77 @@ def _as_subject(sent: Sentence, i: int, j: int) -> str:
     return _cap(sent.span(i, j))
 
 
+def _time_tail(sent: Sentence, k: int) -> bool:
+    """Tokens k..end are a time phrase: "in 2021", "over the past decade", "last year", "yesterday"."""
+    end = sent.end
+    if k >= end or not sent.comma_free(k, end):
+        return False
+    words = sent.low[k:end]
+    if len(words) == 1 and words[0] in _BARE_TIME:
+        return True
+    if words[0] in _BARE_TIME_LEAD and 2 <= len(words) <= 3 and words[-1] in _TIME_NOUNS:
+        return True
+    return _time_phrase(sent, k, end) or (
+        sent.low[k] == "for" and len(words) <= 4 and any(w in _TIME_NOUNS for w in words)  # "for weeks"
+    )
+
+
 def _tail(sent: Sentence, k: int) -> str | None:
-    """Text from token k to the end punctuation if it is empty or a comma-free prepositional tail."""
+    """Text from token k to the end punctuation if it can stay after the moved phrases, else None.
+
+    Allowed: nothing, a time phrase, or a comma-free phrase with a verb-attached preposition.
+    """
     if k == sent.end:
         return ""
-    if sent.tags[k] != "IN" or sent.low[k] == "of" or not sent.comma_free(k, sent.end) or sent.has_verb(k, sent.end):
+    if _time_tail(sent, k):
+        return " " + sent.span(k, sent.end)
+    if sent.low[k] not in _VERB_PREPS or not sent.comma_free(k, sent.end) or sent.has_verb(k, sent.end):
         return None
     return " " + sent.span(k, sent.end)
 
 
+def _np(sent: Sentence, i: int) -> int | None:
+    """``_noun_phrase`` that stops before a time phrase: "five engineers | last year"."""
+    j = _noun_phrase(sent, i, 5)
+    if j is None:
+        return None
+    for m in range(i + 1, j):
+        if sent.low[m] in _BARE_TIME_LEAD and sent.tags[m - 1] in _NOUNS and _time_tail(sent, m):
+            return m
+    return j
+
+
+def _subject_end(sent: Sentence) -> int | None:
+    """End of the opening noun phrase; "Climate change affects" keeps "change" as part of it."""
+    j = _np(sent, 0)
+    if j is None or j + 1 >= sent.end:
+        return j
+    if sent.tags[j] == "VB" and "NN" in pos.options(sent.low[j]) and pos.is_verb_form(sent.low[j + 1], "VBZ", "VBD"):
+        return j + 1
+    return j
+
+
+def _object_end(sent: Sentence, o0: int) -> int | None:
+    """End of the object starting at o0, taking along an "of/for/on/about" phrase that belongs to it."""
+    o_end = _np(sent, o0)
+    if o_end is None:
+        return None
+    if o_end < sent.end and sent.low[o_end] in _OBJECT_PREPS and not _time_tail(sent, o_end):
+        if sent.tags[o_end + 1] in ("PRP", "PRPO"):
+            return None
+        o_end = _np(sent, o_end + 1)
+    return o_end
+
+
+_OBJECT_START = {"DT", "PRPO", "NNP", "CD", "NNS", "NN", "JJ"}
+_AGENT_START = {"DT", "NNP", "PRPO", "NNS", "NN", "CD", "JJ"}
+
+
 def voice(sent: Sentence) -> str | None:
+    """Active <-> passive, only when every phrase still attaches to the same word afterwards."""
     if not sent.stop or not sent.comma_free(0, sent.end) or "PH" in sent.tags:
         return None
-    subj_end = _noun_phrase(sent, 0, 5)
+    subj_end = _subject_end(sent)
     if subj_end is None or subj_end + 2 >= sent.end:
         return None
     low = sent.low
@@ -413,12 +494,12 @@ def voice(sent: Sentence) -> str | None:
         if not lemma or lemma in _NO_PASSIVE or "VBN" not in pos.options(low[v + 1]):
             return None
         a0 = v + 3
-        if sent.tags[a0] not in ("DT", "NNP", "PRPO", "NNS") or low[a0] in ("means",):
+        if a0 >= sent.end or sent.tags[a0] not in _AGENT_START or low[a0] in ("means",):
             return None
-        a_end = _noun_phrase(sent, a0, 5)
-        if a_end is None or (a_end < sent.end and low[a_end] == "of"):
+        a_end = _np(sent, a0)
+        if a_end is None:
             return None
-        tail = _tail(sent, a_end)
+        tail = _tail(sent, a_end)  # "by the committee for the school": whose school? refuse
         if tail is None:
             return None
         if low[v] in ("was", "were"):
@@ -426,8 +507,11 @@ def voice(sent: Sentence) -> str | None:
         else:
             verb = lemma if _number(sent, a0, a_end) == "pl" else pos.third(lemma)
         return f"{_as_subject(sent, a0, a_end)} {verb} {_as_object(sent, 0, subj_end)}{tail}{sent.stop}"
-    # active -> passive ("was visited by them" reads badly, so not from a pronoun subject)
-    if sent.tags[0] in ("PRP", "PRPO"):
+    # active -> passive. A pronoun subject becomes an object ("we" -> "by us"); "it", "this"
+    # and "you" are left alone, since "by it" / "by you" rarely reads well.
+    if sent.tags[0] == "PRPO" or (sent.tags[0] == "PRP" and low[0] not in pos.SUBJECT_TO_OBJECT):
+        return None
+    if low[0] in ("it", "you", "this", "that", "these", "those"):
         return None
     word = low[v]
     opts = pos.options(word)
@@ -441,19 +525,16 @@ def voice(sent: Sentence) -> str | None:
     if not lemma or lemma in _NO_PASSIVE:
         return None
     o0 = v + 1
-    if sent.tags[o0] not in ("DT", "PRPO", "NNP") or low[o0] in ("her",):
+    if sent.tags[o0] not in _OBJECT_START or low[o0] in ("her",) or low[o0] in _TIME_NOUNS | _BARE_TIME_LEAD:
+        return None  # "worked last year", "grew this month": not an object
+    head_end = _np(sent, o0)
+    o_end = _object_end(sent, o0)
+    if head_end is None or o_end is None:
         return None
-    o_end = _noun_phrase(sent, o0, 5)
-    if o_end is None:
-        return None
-    if o_end < sent.end and low[o_end] == "of":  # "the results of the survey"
-        o_end = _noun_phrase(sent, o_end + 1, 5)
-        if o_end is None:
-            return None
     tail = _tail(sent, o_end)
     if tail is None:
         return None
-    plural = _number(sent, o0, o_end) == "pl"
+    plural = _number(sent, o0, head_end) == "pl"  # "millions of people": "millions" decides
     if sent.tags[o0] == "PRPO" and low[o0] == "you":
         plural = True
     be = ("were" if plural else "was") if tense == "past" else ("are" if plural else "is")
@@ -468,15 +549,8 @@ def voice(sent: Sentence) -> str | None:
 _PRONOUN_NUMBER = {"it": "sg", "he": "sg", "she": "sg", "they": "pl"}
 
 
-def merge(a: Sentence, b: Sentence) -> str | None:
-    """Join two short sentences about one subject: "The app is fast. It is also free." -> "... fast and free."."""
-    if a.stop != "." or b.stop != "." or "PH" in a.tags or "PH" in b.tags:
-        return None
-    if not a.comma_free(0, a.end) or not b.comma_free(0, b.end) or a.end > 16 or b.end > 12:
-        return None
-    pron = b.low[0]
-    if pron not in _PRONOUN_NUMBER:
-        return None
+def _antecedent(a: Sentence, pron: str) -> int | None:
+    """End of a's subject if the pronoun ``pron`` opening the next sentence can only mean it."""
     subj_end = _noun_phrase(a, 0, 5)
     if subj_end is None or subj_end >= a.end:
         return None
@@ -484,9 +558,28 @@ def merge(a: Sentence, b: Sentence) -> str | None:
         return None
     if pron in ("he", "she") and a.tags[0] not in ("NNP", "PRP"):
         return None
-    # "It" must have only one possible antecedent: no other noun of that number in sentence a.
-    same = [k for k in range(subj_end, a.end) if a.tags[k] in _NOUNS and _number(a, k, k + 1) == _PRONOUN_NUMBER[pron]]
-    if same:
+    # The pronoun must have only one possible antecedent: no other noun of that number in sentence a.
+    if any(a.tags[k] in _NOUNS and _number(a, k, k + 1) == _PRONOUN_NUMBER[pron] for k in range(subj_end, a.end)):
+        return None
+    return subj_end
+
+
+def _joinable(a: Sentence, b: Sentence) -> str | None:
+    """b's opening pronoun when a and b are short, plain sentences that may be joined."""
+    if a.stop != "." or b.stop != "." or "PH" in a.tags or "PH" in b.tags or len(b) < 3:
+        return None
+    if not a.comma_free(0, a.end) or not b.comma_free(0, b.end) or a.end > 16 or b.end > 14:
+        return None
+    return b.low[0] if b.low[0] in _PRONOUN_NUMBER else None
+
+
+def merge(a: Sentence, b: Sentence) -> str | None:
+    """Join two short sentences about one subject: "The app is fast. It is also free." -> "... fast and free."."""
+    pron = _joinable(a, b)
+    if pron is None or b.end > 12:
+        return None
+    subj_end = _antecedent(a, pron)
+    if subj_end is None:
         return None
     also = b.low[1] == "also"  # "It also works offline."
     rest = 2 if also else 1  # index of b's verb
@@ -509,6 +602,46 @@ def merge(a: Sentence, b: Sentence) -> str | None:
     if a.has_verb(subj_end + 1, a.end) or b.has_verb(rest + 1, b.end):
         return None  # keep it to one verb per sentence
     return f"{a.span(0, a.end)} and {'also ' if also else ''}{b.span(rest, b.end)}."
+
+
+# ---------------------------------------------------------------- 7b relative_join (two sentences)
+
+_PERSON_NOUNS = frozenset(
+    "people person researchers researcher students student teachers teacher workers worker employees employee "
+    "users user patients patient children child parents parent doctors doctor nurses nurse scientists scientist "
+    "participants participant customers customer staff engineers engineer members member authors author experts "
+    "expert farmers farmer residents resident citizens citizen voters voter managers manager leaders leader "
+    "men women man woman".split()
+)
+
+
+def relative_join(a: Sentence, b: Sentence) -> str | None:
+    """Fold the second sentence into the first as a relative clause.
+
+    "The model uses X. It was trained on Y." -> "The model, which was trained on Y, uses X."
+    """
+    pron = _joinable(a, b)
+    if pron is None or a.tags[0] in ("PRP", "PRPO"):
+        return None
+    subj_end = _antecedent(a, pron)
+    if subj_end is None or a.end - subj_end < 2:
+        return None
+    if not (a.tags[subj_end] in _VERBISH or pos.is_verb_form(a.low[subj_end], "VBZ", "VBD")):
+        return None
+    first = 2 if b.low[1] == "also" else 1
+    if b.end - first < 2 or not (b.tags[first] in _VERBISH or pos.is_verb_form(b.low[first], "VBZ", "VBD")):
+        return None
+    head = a.low[subj_end - 1]
+    person = a.tags[subj_end - 1] == "NNP" or head in _PERSON_NOUNS or head.endswith(("ers", "ists", "ians"))
+    if pron == "it":
+        if person:
+            return None
+        rel = "which"
+    elif pron == "they":
+        rel = "who" if person else "which"
+    else:
+        rel = "who"
+    return f"{a.span(0, subj_end)}, {rel} {b.span(1, b.end)}, {a.span(subj_end, a.end)}."
 
 
 # ---------------------------------------------------------------- 8 list_prose

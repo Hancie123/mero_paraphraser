@@ -1010,3 +1010,48 @@ textarea:focus-visible {
   font-weight: 600;
   pointer-events: none;
 }
+
+/* ---------- suggestion picker (any word / selected sentence) ---------- */
+.picker.picker-wide {
+  max-width: 420px;
+}
+.picker {
+  max-height: min(420px, 70vh);
+  overflow-y: auto;
+}
+.picker-group + .picker-group {
+  border-top: 1px solid var(--stroke-divider);
+  margin-top: 2px;
+  padding-top: 2px;
+}
+.picker-group {
+  display: flex;
+  flex-direction: column;
+}
+.picker-gloss {
+  font-size: 11px;
+  line-height: 14px;
+  color: var(--text-2);
+  padding: 6px 12px 2px;
+}
+.picker-note {
+  font-size: 12px;
+  line-height: 16px;
+  margin: 2px 8px 4px;
+  padding: 6px 8px;
+  border-radius: 4px;
+  background: var(--subtle-hover);
+  color: var(--text);
+}
+.picker-status {
+  font-size: 13px;
+  color: var(--text-2);
+  padding: 6px 12px 8px;
+}
+.output .w {
+  cursor: pointer;
+  border-radius: 3px;
+}
+.output .w:hover {
+  background: var(--subtle-hover);
+}

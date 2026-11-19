@@ -42,6 +42,58 @@ export function replaceSegment(segments: Segment[], index: number, text: string)
   return next;
 }
 
+/**
+ * Replace characters `start`..`end` of the joined segments with `text`, as one changed segment.
+ *
+ * A changed segment the range touches is replaced whole, so the new segment's `original`
+ * is always the source wording (and choosing it restores the source). Returns the new
+ * segments and the index of the inserted one; a preceding "a"/"an" is fixed as in
+ * `replaceSegment`.
+ */
+export function replaceRange(
+  segments: Segment[],
+  start: number,
+  end: number,
+  text: string,
+  extra: Pick<Segment, "kind" | "level" | "alternatives">,
+): { segments: Segment[]; index: number } {
+  // Widen the range to whole changed segments.
+  let pos = 0;
+  for (const s of segments) {
+    const a = pos;
+    const b = (pos += s.text.length);
+    if (s.original !== undefined && a < end && b > start) {
+      start = Math.min(start, a);
+      end = Math.max(end, b);
+    }
+  }
+  const out: Segment[] = [];
+  let original = "";
+  let index = -1;
+  pos = 0;
+  for (const s of segments) {
+    const a = pos;
+    const b = (pos += s.text.length);
+    if (b <= start || a >= end) {
+      if (a >= end && index < 0) index = out.push({ text, original, ...extra }) - 1;
+      out.push({ ...s });
+      continue;
+    }
+    if (s.original !== undefined) {
+      original += s.original; // fully inside the range (widened above)
+      continue;
+    }
+    if (a < start) out.push({ text: s.text.slice(0, start - a) });
+    original += s.text.slice(Math.max(0, start - a), Math.min(s.text.length, end - a));
+    if (b > end) {
+      index = out.push({ text, original, ...extra }) - 1;
+      out.push({ text: s.text.slice(end - a) });
+    }
+  }
+  if (index < 0) index = out.push({ text, original, ...extra }) - 1;
+  return { segments: replaceSegment(out, index, text), index };
+}
+
 // \p{M} keeps combining marks (Devanagari vowel signs, virama) inside the word.
 export const countWords = (text: string) =>
   (text.match(/[\p{L}\p{N}][\p{L}\p{M}\p{N}]*(?:['’][\p{L}\p{M}\p{N}]+)*/gu) ?? []).length;

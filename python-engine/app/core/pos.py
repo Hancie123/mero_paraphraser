@@ -283,6 +283,8 @@ def tag(words: list[str]) -> list[str]:
                 pick = next((o for o in opts if o in ("VBZ", "VBD")), pick)
             elif prev == "NNS":  # "people think"
                 pick = next((o for o in opts if o in ("VB", "VBD")), pick)
+        if pick == "VB" and prev == "DT":
+            pick = "NN"  # "a show", "the run": a bare verb after a determiner is a noun
         if word[:1].isupper() and i > 0 and pick not in ("PRP", "PH") and words[i - 1] not in ".!?":
             pick = "NNP"
         tags.append(pick)

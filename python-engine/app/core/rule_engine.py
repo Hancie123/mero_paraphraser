@@ -28,6 +28,7 @@ import re
 from dataclasses import dataclass, field
 
 from ..schemas.paraphrase import ParaphraseError
+from ..utils.text_utils import ABBREVIATIONS as TEXT_ABBREVIATIONS
 from ..utils.text_utils import match_case, wants_an
 from . import lexicon as lx
 from .config import MAX_CHARS
@@ -46,6 +47,10 @@ SPAN_P = 0.80  # extra probability added at strength 100
 # From this strength on, a sentence the normal pass left unchanged gets a second
 # pass that makes one safe edit in it (two from strength 75), so most sentences change.
 FORCE_FROM = 40
+# Zipf points (lexicon.WORD_FREQ): a synonym this much rarer than the word it replaces is
+# down-ranked; one HARD_RARE_GAP rarer is never used ("utilize" for "use").
+RARE_GAP = 1.0
+HARD_RARE_GAP = 2.0
 RULES: tuple[PhraseRule, ...] = (
     PhraseRule(lx.GENERAL_PHRASES),
     PhraseRule(lx.CONTRACT_PHRASES, needs_next_word=True),
@@ -140,10 +145,7 @@ IDIOM_PREV = frozenset(
 IDIOM_NEXT = frozenset({("problem", "solving"), ("whole", "lot"), ("job", "done"), ("end", "up")})
 
 # A "." after these (or after a single letter: "U.S.", "e.g.", "J. Smith") does not end a sentence.
-ABBREVIATIONS = frozenset(
-    "dr mr mrs ms prof st jr sr inc ltd co corp vs etc al cf fig no vol pp approx dept est gen gov "
-    "sen rep rev mt ft jan feb mar apr jun jul aug sep sept oct nov dec".split()
-)
+ABBREVIATIONS = frozenset(w for w in TEXT_ABBREVIATIONS if "." not in w)
 
 
 _ADJ_SUFFIXES = ("al", "ant", "ent", "ive", "ous", "ful", "ic", "able", "ible", "less", "ary")
@@ -300,8 +302,14 @@ class Paraphraser:
         return not any(lx.opposed(w, original) or any(lx.opposed(w, n) for n in others) for w in candidate.split())
 
     def _pick(self, options: list[str], original: str) -> str | None:
-        """One of the two most common candidates, skipping slang."""
-        opts = [o for o in options if o.lower() != original and not _casual(o)][:2]
+        """One of the two most common candidates, skipping slang and down-ranking rare words.
+
+        A candidate much rarer than the original ("weary" for "tired") is used only when
+        nothing more common fits, and never when it is very much rarer.
+        """
+        opts = [o for o in options if o.lower() != original and not _casual(o)]
+        common = [o for o in opts if not lx.much_rarer(o, original, RARE_GAP)]
+        opts = (common or [o for o in opts if not lx.much_rarer(o, original, HARD_RARE_GAP)])[:2]
         return self.rng.choice(opts) if opts else None
 
     def _phrase(self, i: int) -> tuple[Segment, int] | None:

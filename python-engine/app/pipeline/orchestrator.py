@@ -3,8 +3,8 @@
     1 Input processing        clean, split off references, protect citations/quotes/links
     2 Context analysis        register, names, key terms, logical relationships
     3 Semantic understanding  numbers, names, negations, hedges to preserve
-    4 Rewriting               rewrite each part with the rule-based engine (Humanize)
     4b Sentence rewriting     move clauses, active/passive, "make a decision" -> "decide"...
+    4 Rewriting               word and phrase swaps with the rule-based engine (Humanize)
     5 Language refinement     grammar, spacing, articles, stock phrases
     6 Meaning validation      numbers, names, negations, hedges and length still match
     7 Citation validation     every protected span back exactly once; no invented citations
@@ -13,7 +13,10 @@
 Layers 4-7 run per part so a part that fails validation can be rewritten
 again with new wording; if it still fails on citations it is kept unchanged.
 
-Layer 4 writes several drafts per part. Each goes through Layer 5 and the
+Layer 4b runs before Layer 4, on the original wording, so its patterns see
+"It is ... that" and "make a decision" rather than "It's" or "make a choice".
+
+Several drafts are written per part. Each goes through Layer 5 and the
 checks, then the drafts are ranked by problems found and by how human they
 read (humanizer.human_score), and the best one is kept.
 
@@ -155,16 +158,17 @@ class ParaphrasePipeline:
         best: _Trial | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             attempt_seed = None if seed is None else seed + attempt - 1
-            # Layer 4: several drafts
-            drafts = self.rewriting_engine.drafts(chunk.source, strength, attempt_seed, attempt > 1, n, prefs)
-            # Layers 5-7 per draft, then keep the best. Ties go to the later attempt.
-            for k, raw in enumerate(drafts):
-                # Layer 4b: reshape some sentences. Each draft gets its own seed so drafts differ.
+            # Layers 4b + 4 per draft, then 5-7, then keep the best. Ties go to the later attempt.
+            seeds = self.rewriting_engine.seeds(attempt_seed, attempt > 1, n)
+            for k, draft_seed in enumerate(seeds):
+                # Layer 4b first, on the author's own wording: its patterns ("It is ... that",
+                # "make a decision") are written for that, not for Layer 4's contractions and
+                # synonyms, and it must not stack on a swap ("decision" -> "choice" -> "choose").
                 rng = random.Random(None if attempt_seed is None else attempt_seed * 1009 + k)
-                shaped = reshape(raw, restructure, rng, context.names, prefs.locked)
-                trial = self._trial(
-                    chunk, shaped.text, facts, context.register == "academic", attempt, attempt_seed, prefs
-                )
+                shaped = reshape(chunk.source, restructure, rng, context.names, prefs.locked)
+                # Layer 4: word and phrase swaps on the reshaped text
+                raw = self.rewriting_engine.draft(shaped.text, strength, draft_seed, prefs)
+                trial = self._trial(chunk, raw, facts, context.register == "academic", attempt, attempt_seed, prefs)
                 trial.result.reshaped = shaped.count
                 if best is None or trial.rank <= best.rank:
                     best = trial

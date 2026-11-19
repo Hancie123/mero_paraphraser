@@ -63,6 +63,34 @@ export const paraphrase = (
   prefs: WordPrefs = EMPTY_PREFS,
 ) => invoke<ParaphraseResult>("paraphrase", { text, mode, strength, restructure, seed, prefs: toRequest(prefs) });
 
+/** One meaning of a word and its similar words. `pos` is "" for the reviewed, everyday group. */
+export interface Sense {
+  pos: string;
+  gloss: string;
+  words: string[];
+}
+
+export interface Suggestions {
+  word: string;
+  senses: Sense[];
+  /** Set when the word is a hedge, negation or reporting verb: swapping it can change the meaning. */
+  note: string;
+}
+
+/** Similar words for one word of the result; `context` is its sentence (orders the senses). */
+export const suggest = (word: string, context: string) => invoke<Suggestions>("suggest", { word, context });
+
+/** 2-3 different rewrites of a selected sentence or phrase. */
+export const rephrase = (
+  text: string,
+  mode: Mode,
+  strength: number,
+  restructure: number,
+  seed: number,
+  prefs: WordPrefs = EMPTY_PREFS,
+) =>
+  invoke<{ alternatives: string[] }>("rephrase", { text, mode, strength, restructure, seed, prefs: toRequest(prefs) });
+
 export const exportDocx = (text: string) => invoke<{ data: string }>("export_docx", { text });
 export const readDocx = (data: string) => invoke<{ text: string }>("read_docx", { data });
 export const cleanDocx = (data: string) => invoke<{ data: string; removed: string[] }>("clean_docx", { data });

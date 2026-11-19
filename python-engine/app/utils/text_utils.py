@@ -11,26 +11,13 @@ WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
 TOKEN_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*\s*|[^\w\s]\s*|_+\s*|\s+")
 PLACEHOLDER_RE = re.compile(r"\[\[\s*(\d+)\s*\]\]")
 
-_ABBREVIATIONS = {
-    "e.g",
-    "i.e",
-    "etc",
-    "al",
-    "vs",
-    "cf",
-    "approx",
-    "fig",
-    "no",
-    "vol",
-    "pp",
-    "p",
-    "dr",
-    "mr",
-    "mrs",
-    "ms",
-    "prof",
-    "st",
-}
+# A "." after one of these does not end a sentence. Dotted initials ("U.S.", "e.g.",
+# "p.m.", "J. Smith") are caught by shape in ``ends_with_abbreviation``.
+ABBREVIATIONS = frozenset(
+    "e.g i.e etc al vs cf approx fig no vol pp p dr mr mrs ms prof st jr sr inc ltd co corp dept est "
+    "gen gov sen rep rev mt ft jan feb mar apr jun jul aug sep sept oct nov dec".split()
+)
+_LAST_WORD_DOT = re.compile(r"(\w+(?:\.\w+)*)\.$")
 _SENTENCE_END = re.compile(r"(?<=[.!?…])[\"”’)\]]*\s+(?=[\"“‘(\[]*[A-Z0-9\[])")
 
 
@@ -54,21 +41,26 @@ def _trimmed(text: str, a: int, b: int) -> tuple[int, int]:
     return a, b
 
 
+def ends_with_abbreviation(text: str) -> bool:
+    """True if ``text`` ends with an abbreviation's ".": "Dr.", "et al.", "U.S.", "e.g.", "J."."""
+    last = _LAST_WORD_DOT.search(text.rstrip())
+    if not last:
+        return False
+    word = last.group(1)
+    if word.lower() in ABBREVIATIONS:
+        return True
+    if len(word) == 1 and word.isupper():  # initials: "J. Smith"
+        return True
+    return "." in word and all(len(part) == 1 for part in word.split("."))  # "U.S.", "e.g.", "p.m."
+
+
 def sentence_spans(text: str) -> list[tuple[int, int]]:
     """``(start, end)`` of each sentence, ignoring abbreviations like "e.g.", "U.S." and "et al."."""
     spans: list[tuple[int, int]] = []
     start = 0
     for m in _SENTENCE_END.finditer(text):
-        before = text[start : m.start()].rstrip('"”’)]')
-        last = re.search(r"(\w+(?:\.\w+)*)\.$", before)
-        if last:
-            word = last.group(1)
-            if word.lower() in _ABBREVIATIONS:
-                continue
-            if len(word) == 1 and word.isupper():  # initials: "J. Smith"
-                continue
-            if "." in word and all(len(part) == 1 for part in word.split(".")):  # "U.S.", "e.g."
-                continue
+        if ends_with_abbreviation(text[start : m.start()].rstrip('"”’)]')):
+            continue
         spans.append(_trimmed(text, start, m.start()))
         start = m.end()
     spans.append(_trimmed(text, start, len(text)))
