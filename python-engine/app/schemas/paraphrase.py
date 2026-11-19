@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 
-from ..core.config import MAX_CHARS, MODE_ALIASES, MODES
+from ..core.config import MAX_CHARS, MODES
 
 class ParaphraseError(ValueError):
     """Invalid input or a failure the user should see (bad mode, text too long...)."""
@@ -13,7 +13,7 @@ class ParaphraseError(ValueError):
 @dataclass
 class ParaphraseRequest:
     text: str
-    mode: str = "standard"
+    mode: str = "humanize"
     strength: int = 50
     seed: int | None = None
 
@@ -24,7 +24,7 @@ class ParaphraseRequest:
             raise ParaphraseError("text must be a string")
         if len(text) > MAX_CHARS:
             raise ParaphraseError(f"text is too long ({len(text):,} characters, max {MAX_CHARS:,})")
-        mode = MODE_ALIASES.get(d.get("mode", "standard"), d.get("mode", "standard"))
+        mode = d.get("mode", "humanize")
         if mode not in MODES:
             raise ParaphraseError(f"unknown mode {mode!r}; choose one of {', '.join(MODES)}")
         try:

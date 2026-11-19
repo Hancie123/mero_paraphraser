@@ -1,15 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type Mode = "standard" | "academic" | "professional" | "fluent" | "simple" | "creative" | "shorten";
+export type Mode = "humanize";
 
 export const MODES: { id: Mode; label: string; hint: string }[] = [
-  { id: "standard", label: "Standard", hint: "Balanced rewording that keeps the meaning" },
-  { id: "academic", label: "Academic", hint: "Clear academic style for essays and papers; keeps citations and hedging" },
-  { id: "professional", label: "Professional", hint: "Polished tone for work documents, no contractions" },
-  { id: "fluent", label: "Fluent", hint: "Natural, everyday wording" },
-  { id: "simple", label: "Simple", hint: "Plain words that are easy to read" },
-  { id: "creative", label: "Creative", hint: "Bolder, more varied vocabulary" },
-  { id: "shorten", label: "Shorten", hint: "Cuts wordy phrases and filler" },
+  { id: "humanize", label: "Humanize", hint: "Natural, human-sounding rewording that keeps the meaning" },
 ];
 
 export const MAX_CHARS = 20_000;

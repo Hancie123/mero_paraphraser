@@ -13,8 +13,5 @@ __pycache__/
 *.pyc
 .venv/
 
-# Release folders (installer + AI model)
+# Release folders
 release/
-
-# Local model for development (python-engine/models/model.gguf)
-python-engine/models/*.gguf

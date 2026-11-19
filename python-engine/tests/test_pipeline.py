@@ -1,4 +1,4 @@
-"""Tests for the eight pipeline layers that don't need the AI model."""
+"""Tests for the eight pipeline layers."""
 
 import sys
 import unittest
@@ -11,7 +11,7 @@ from app.pipeline.citation_validator import check_tokens  # noqa: E402
 from app.pipeline.context_analyzer import ContextAnalyzer  # noqa: E402
 from app.pipeline.input_processor import InputProcessor, restore  # noqa: E402
 from app.pipeline.language_refiner import LanguageRefiner  # noqa: E402
-from app.pipeline.meaning_validator import check_facts, parse_judgement  # noqa: E402
+from app.pipeline.meaning_validator import check_facts  # noqa: E402
 from app.pipeline.output_formatter import diff_segments  # noqa: E402
 from app.pipeline.semantic_analyzer import facts_for  # noqa: E402
 from app.schemas.paraphrase import ParaphraseError  # noqa: E402
@@ -84,8 +84,8 @@ class Layer5RefineTests(unittest.TestCase):
         r = LanguageRefiner().refine("We delve into it and utilize data. Foster care is paramount.", "We delve into it.")
         self.assertEqual(r.text, "We look at it and use data. Foster care matters most.")
 
-    def test_robust_kept_in_academic_mode(self):
-        r = LanguageRefiner().refine("Robust estimates leverage the panel.", "x", "academic")
+    def test_robust_kept_in_academic_text(self):
+        r = LanguageRefiner().refine("Robust estimates leverage the panel.", "x", academic=True)
         self.assertEqual(r.text, "Robust estimates leverage the panel.")
 
 
@@ -98,10 +98,10 @@ class Layer6And7ValidationTests(unittest.TestCase):
 
     def test_good_rewrite_passes(self):
         out = "Sales did not rise in 2023, and they may drop by 5% at Acme Corp."
-        self.assertEqual(check_facts(self.src, out, self.facts, "standard"), [])
+        self.assertEqual(check_facts(self.src, out, self.facts), [])
 
     def test_detects_lost_number_negation_hedge_and_name(self):
-        issues = " ".join(check_facts(self.src, "Sales grew in 2022 and they will fall at Acme.", self.facts, "standard"))
+        issues = " ".join(check_facts(self.src, "Sales grew in 2022 and they will fall at Acme.", self.facts))
         self.assertIn("Numbers", issues)
         self.assertIn("negation", issues)
         self.assertIn("Hedging", issues)
@@ -112,13 +112,6 @@ class Layer6And7ValidationTests(unittest.TestCase):
         issues, critical = check_tokens("A [[1]] b [[2]].", "A b [[2]] (Smith, 2020).")
         self.assertTrue(critical)
         self.assertEqual(len(issues), 2)  # dropped [[1]] and invented a citation
-
-    def test_parse_judgement(self):
-        self.assertEqual(parse_judgement('{"added": [], "missing": [], "changed": [], "score": 5}'), (5, ""))
-        score, issue = parse_judgement('{"added": ["a new claim"], "missing": [], "changed": [], "score": 5}')
-        self.assertEqual(score, 3)  # listed problems outweigh the score
-        self.assertIn("a new claim", issue)
-        self.assertEqual(parse_judgement("Score: 2")[0], 2)
 
 
 class Layer8OutputTests(unittest.TestCase):
@@ -141,11 +134,10 @@ class ChunkTests(unittest.TestCase):
 
 
 class PipelineTests(unittest.TestCase):
-    """The whole pipeline with the rule-based engine (engine "basic")."""
+    """The whole pipeline in Humanize mode."""
 
     def test_end_to_end_report(self):
-        r = handle({"cmd": "paraphrase", "text": ACADEMIC, "mode": "academic", "strength": 60, "seed": 2})
-        self.assertEqual(r["engine"], "basic")
+        r = handle({"cmd": "paraphrase", "text": ACADEMIC, "mode": "humanize", "strength": 60, "seed": 2})
         self.assertEqual("".join(s["text"] for s in r["segments"]), r["text"])
         for kept in ("Twenge (2019)", "(Orben & Przybylski, 2019; Lee et al., 2021, p. 4)",
                      '"screen time is not a single thing"', "[3]", "https://example.org/study",
@@ -156,12 +148,13 @@ class PipelineTests(unittest.TestCase):
                          ["input", "context", "semantic", "rewrite", "refine", "meaning", "citations", "output"])
         self.assertEqual(layers[6]["status"], "ok")
 
-    def test_old_formal_mode_still_works(self):
-        r = handle({"cmd": "paraphrase", "text": "I don't know.", "mode": "formal", "seed": 1})
-        self.assertEqual(r["text"], "I do not know.")
+    def test_humanize_is_the_only_mode(self):
+        self.assertEqual(handle({"cmd": "ping"})["modes"], ["humanize"])
+        r = handle({"cmd": "paraphrase", "text": "I do not know.", "seed": 1})  # mode defaults to humanize
+        self.assertIn("Humanize mode", r["report"]["layers"][3]["detail"])
 
     def test_invalid_requests(self):
-        for bad in ({"mode": "bogus"}, {"engine": "gpt"}, {"strength": "x"}, {"text": "x" * 20_001}):
+        for bad in ({"mode": "bogus"}, {"mode": "academic"}, {"strength": "x"}, {"text": "x" * 20_001}):
             with self.assertRaises(ParaphraseError):
                 handle({"cmd": "paraphrase", "text": "hi", **bad})
 

@@ -3,7 +3,7 @@
     1 Input processing        clean, split off references, protect citations/quotes/links
     2 Context analysis        register, names, key terms, logical relationships
     3 Semantic understanding  numbers, names, negations, hedges to preserve
-    4 Rewriting               rewrite each part with the rule-based engine
+    4 Rewriting               rewrite each part with the rule-based engine (Humanize)
     5 Language refinement     grammar, spacing, articles, stock phrases
     6 Meaning validation      numbers, names, negations, hedges and length still match
     7 Citation validation     every protected span back exactly once; no invented citations
@@ -79,7 +79,7 @@ class ParaphrasePipeline:
             chunk = ChunkResult(index=sum(1 for c in chunks if c.rewrite) + 1, source=piece, output=piece, rewrite=rewrite)
             if rewrite:
                 started = time.perf_counter()
-                self._rewrite_part(chunk, mode, strength, context, None if seed is None else seed + i * 7)
+                self._rewrite_part(chunk, strength, context, None if seed is None else seed + i * 7)
                 if _PROFILE:
                     print(f"[mero] part {chunk.index}: {len(piece)} chars, {chunk.attempts} attempt(s), "
                           f"{time.perf_counter() - started:.1f}s", file=sys.stderr, flush=True)
@@ -92,20 +92,20 @@ class ParaphrasePipeline:
         # Layer 8
         return self.output_formatter.format(
             processed, final, chunks, context, facts, meaning, citations,
-            engine=self.rewriting_engine.name, mode=mode, strength=strength,
+            mode=mode, strength=strength,
         )
 
-    def _rewrite_part(self, chunk: ChunkResult, mode: str, strength: int, context, seed: int | None) -> None:
+    def _rewrite_part(self, chunk: ChunkResult, strength: int, context, seed: int | None) -> None:
         facts = facts_for(chunk.source, context)
         n = drafts_for(strength)
         best: _Trial | None = None
         for attempt in range(1, MAX_ATTEMPTS + 1):
             attempt_seed = None if seed is None else seed + attempt - 1
             # Layer 4: several drafts
-            drafts = self.rewriting_engine.drafts(chunk.source, mode, strength, attempt_seed, attempt > 1, n)
+            drafts = self.rewriting_engine.drafts(chunk.source, strength, attempt_seed, attempt > 1, n)
             # Layers 5-7 per draft, then keep the best. Ties go to the later attempt.
             for raw in drafts:
-                trial = self._trial(chunk, raw, facts, mode, attempt, attempt_seed)
+                trial = self._trial(chunk, raw, facts, context.register == "academic", attempt, attempt_seed)
                 if best is None or trial.rank <= best.rank:
                     best = trial
             if not best.result.issues:
@@ -121,13 +121,13 @@ class ParaphrasePipeline:
             chunk.output, chunk.kept_original, chunk.fixes, chunk.phrases = chunk.source, True, 0, 0
             chunk.restructured = 0
 
-    def _trial(self, chunk: ChunkResult, raw: str, facts, mode: str, attempt: int, seed: int | None) -> _Trial:
+    def _trial(self, chunk: ChunkResult, raw: str, facts, academic: bool, attempt: int, seed: int | None) -> _Trial:
         """Layer 5, then the Layer 7 token check and the Layer 6 fact checks."""
-        refined = self.language_refiner.refine(raw, chunk.source, mode, seed)
+        refined = self.language_refiner.refine(raw, chunk.source, seed, humanize=True, academic=academic)
         result = ChunkResult(chunk.index, chunk.source, refined.text, True, attempt, refined.fixes, refined.phrases)
         result.restructured = refined.restructured
         token_issues, critical = check_tokens(chunk.source, result.output)
-        result.issues = token_issues if critical else check_facts(chunk.source, result.output, facts, mode)
+        result.issues = token_issues if critical else check_facts(chunk.source, result.output, facts)
         result.critical = critical
         score = human_score(result.output)
         result.human_score, result.patterns = score.total, score.patterns

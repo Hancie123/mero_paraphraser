@@ -1,7 +1,7 @@
 """Layer 1: input processing - text cleaning, paragraph splitting and citation extraction.
 
 Citations, direct quotations, links and code are replaced by ``[[n]]`` tokens
-before rewriting so the model can't alter them; Layer 7 checks they all come
+before rewriting so the rewrite can't alter them; Layer 7 checks they all come
 back exactly once. A trailing reference list is split off and kept verbatim.
 """
 

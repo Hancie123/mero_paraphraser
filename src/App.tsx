@@ -36,7 +36,7 @@ const SHORTCUTS: [string, string][] = [
 
 export default function App() {
   const [input, setInput] = useState("");
-  const [mode, setMode] = useState<Mode>("standard");
+  const mode: Mode = "humanize";
   const [strength, setStrength] = useState(50);
   const [segments, setSegments] = useState<Segment[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -81,7 +81,7 @@ export default function App() {
     } finally {
       setBusy(false);
     }
-  }, [input, mode, strength, busy]);
+  }, [input, strength, busy]);
 
   /* ---------- commands ---------- */
 
@@ -281,13 +281,6 @@ export default function App() {
       label: "View",
       key: "V",
       items: [
-        ...MODES.map((m) => ({
-          label: `${m.label} mode`,
-          action: () => setMode(m.id),
-          checked: mode === m.id,
-          radio: true,
-        })),
-        { separator: true },
         { label: "Highlight changes", action: () => setHighlight((h) => !h), checked: highlight },
         { separator: true },
         { label: "Zoom in", shortcut: "Ctrl+=", action: () => zoomBy(1), disabled: zoom >= ZOOM_STEPS.at(-1)! },
@@ -327,7 +320,6 @@ export default function App() {
                 aria-selected={mode === m.id}
                 className={mode === m.id ? "mode active" : "mode"}
                 title={m.hint}
-                onClick={() => setMode(m.id)}
               >
                 {m.label}
               </button>

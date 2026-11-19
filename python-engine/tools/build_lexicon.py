@@ -6,11 +6,10 @@ and wordfreq are never bundled:
     python -m pip install -r python-engine/tools/requirements-build.txt
     python python-engine/tools/build_lexicon.py
 
-Only ``humanizer.swap_predictable`` (and the editor's word suggestions) use
-these words. A swap there still needs the model to rate the synonym likely at
-that exact spot, so the list can be broad without producing odd rewrites. The
-offline rule engine keeps to the hand-written groups in app/core/lexicon.py,
-which always win over generated entries.
+Only the editor's word suggestions (click a changed word) use these words,
+so the user always picks them in context. The rule engine keeps to the
+hand-written groups in app/core/lexicon.py, which always win over generated
+entries.
 
 Filters, in order:
 

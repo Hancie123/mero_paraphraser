@@ -1,7 +1,7 @@
 """Layer 7: citation validation - citations, quotations and references.
 
 Per part (before restoring tokens): every [[n]] token comes back exactly once,
-and the model didn't invent new citations. On the final text: every protected
+and the rewrite didn't invent new citations. On the final text: every protected
 citation, quotation and link is present verbatim, and the reference list is
 unchanged.
 """

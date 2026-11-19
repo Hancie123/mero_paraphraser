@@ -1,7 +1,6 @@
 """Layer 2: context analysis - meaning, arguments, terminology and relationships.
 
-Rule-based on purpose: every extra model call costs seconds on a CPU, and these
-signals are reliable to detect from the text itself.
+Rule-based: these signals are reliable to detect from the text itself.
 """
 
 from __future__ import annotations

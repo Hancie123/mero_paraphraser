@@ -10,7 +10,7 @@ from __future__ import annotations
 import difflib
 
 from ..core import lexicon as lx
-from ..core.config import MODEL_NAME, MODES
+from ..core.config import MODES
 from ..schemas.paraphrase import ChunkResult, Context, Facts, LayerReport, ProcessedInput
 from ..utils.text_utils import (
     WORD_RE,
@@ -26,7 +26,7 @@ LAYER_NAMES = [
     ("input", "Input processing"),
     ("context", "Context analysis"),
     ("semantic", "Semantic understanding"),
-    ("rewrite", "AI rewriting"),
+    ("rewrite", "Rewriting"),
     ("refine", "Language refinement"),
     ("meaning", "Meaning validation"),
     ("citations", "Citation validation"),
@@ -125,7 +125,6 @@ class OutputFormatter:
         meaning: dict,
         citations: dict,
         *,
-        engine: str,
         mode: str,
         strength: int,
     ) -> dict:
@@ -137,8 +136,6 @@ class OutputFormatter:
         phrases = sum(c.phrases for c in chunks)
         rewritten = [c for c in chunks if c.rewrite]
         restructured = sum(c.restructured for c in rewritten)
-        swaps = sum(c.swaps for c in rewritten)
-        sentence_rewrites = sum(c.sentence_rewrites for c in rewritten)
         human_scores = [c.human_score for c in rewritten if c.human_score is not None and not c.kept_original]
         patterns = sorted({p for c in rewritten if not c.kept_original for p in c.patterns})
         drafts = max((c.drafts for c in rewritten), default=0)
@@ -182,15 +179,10 @@ class OutputFormatter:
         claims = _n(facts.claims, "claim")
         add(2, "ok", (f"{claims}; tracking " + _list(tracked, 4) if tracked else claims) + ".")
 
-        engine_name = MODEL_NAME if engine == "ai" else "the rule-based engine"
-        detail = (f"Rewrote {len(rewritten)} part{'s' * (len(rewritten) != 1)} with {engine_name} in "
-                  f"{MODES[mode].label} mode ({_strength_label(strength)} changes)")
+        detail = (f"Rewrote {len(rewritten)} part{'s' * (len(rewritten) != 1)} in "
+                  f"{MODES[mode]} mode ({_strength_label(strength)} changes)")
         if drafts > 1:
             detail += f"; kept the most human-sounding of {drafts} drafts per part"
-        if sentence_rewrites:
-            detail += f"; rewrote {_n(sentence_rewrites, 'predictable sentence')}"
-        if swaps:
-            detail += f"; varied {_n(swaps, 'predictable word')}"
         if meaning["retried"]:
             detail += f"; {meaning['retried']} rewritten again after validation"
         add(3, "ok", detail + ".")
@@ -205,10 +197,7 @@ class OutputFormatter:
         if meaning["issues"]:
             add(5, "warning", f"{meaning['passed']} of {meaning['parts']} parts passed. " + " ".join(meaning["issues"][:3]))
         else:
-            detail = "Facts, numbers, names, negations and hedging preserved"
-            if meaning["average_score"] is not None:
-                detail += f"; meaning score {meaning['average_score']}/5"
-            add(5, "ok", detail + ".")
+            add(5, "ok", "Facts, numbers, names, negations and hedging preserved.")
 
         if not citations["ok"]:
             add(6, "warning", "Some protected text changed: " + _list(citations["missing"], 3) + ".")
@@ -236,16 +225,14 @@ class OutputFormatter:
         ea, eb = reading_ease(processed.body), reading_ease(final_body)
         if ea is not None and eb is not None and abs(ea - eb) >= 5:
             explain.append("The text is now easier to read." if eb > ea else "The wording is now more formal and dense.")
-        if mode == "shorten" and words_in:
-            explain.append(f"Shortened from {words_in} to {words_out} words ({round(100 * (words_in - words_out) / words_in)}% shorter).")
         if facts.numbers or facts.names:
             explain.append("Kept every number, name and technical term from the original.")
         if protected_parts or citations["references"]:
             explain.append("Citations, quotations and references were left exactly as written.")
         if phrases:
             explain.append(f"Replaced {phrases} overused AI-style phrase{'s' * (phrases != 1)} with plainer wording.")
-        if drafts > 1 or restructured or swaps:
-            explain.append("Chose less predictable wording and a more varied sentence rhythm, so the text reads more like a person wrote it.")
+        if drafts > 1 or restructured:
+            explain.append("Chose more natural wording and a more varied sentence rhythm, so the text reads more like a person wrote it.")
         if patterns:
             explain.append("Still reads a little machine-like here: " + _list(patterns, 3) + ".")
         if meaning["kept_original"]:
@@ -260,7 +247,6 @@ class OutputFormatter:
                 "changes": changes,
                 "change_pct": pct,
             },
-            "engine": engine,
             "report": {
                 "layers": [l.to_dict() for l in layers],
                 "explanations": explain,
@@ -269,8 +255,6 @@ class OutputFormatter:
                 "humanness": {
                     "score": round(sum(human_scores) / len(human_scores), 2) if human_scores else None,
                     "drafts": drafts,
-                    "sentence_rewrites": sentence_rewrites,
-                    "word_swaps": swaps,
                     "structural_edits": restructured,
                     "patterns": patterns,
                 },

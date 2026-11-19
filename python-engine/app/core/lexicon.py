@@ -311,41 +311,7 @@ def suggestions_for(word: str) -> list[str] | None:
     return list(entry[1]) if entry else None
 
 
-# Words a formal register prefers, and words it avoids.
-FORMAL_PREF = {
-    "assist", "assisted", "assisting", "demonstrate", "demonstrated", "utilize",
-    "utilizing", "commence", "commenced", "obtain", "acquire", "purchase",
-    "purchased", "individuals", "consequently", "furthermore", "moreover",
-    "nevertheless", "nonetheless", "significant", "numerous", "sufficient",
-    "approximately", "residence", "automobile", "enhance", "enhanced", "examine",
-    "ascertain", "comprehend", "inform", "notify", "require", "conclude",
-    "concluded", "construct", "accumulate", "attain", "attained", "accomplish",
-    "contemplate", "modify", "modified", "occur", "occurred", "encompass",
-    "guarantee", "investigate", "inquiry", "investigation", "objective",
-    "technique", "advantage", "instance", "error", "response", "guidance",
-    "expertise", "capability", "photograph", "vehicle", "journey", "contentment",
-    "sorrow", "velocity", "portion", "segment", "client", "instructor",
-    "educator", "learner", "companion", "endeavor", "characteristic",
-    "perspective", "regulation", "hazard", "expansion", "instrument", "location",
-    "narrative", "therefore", "thus", "hence", "entirely", "fully", "primarily",
-    "particularly", "immediately", "possibly", "undoubtedly", "readily",
-    "meticulously", "considerably", "substantially", "presently", "frequently",
-    "typically", "generally", "rapidly", "gradually", "virtually", "ultimately",
-    "evidently", "challenging", "intelligent", "prevalent", "customary",
-    "evident", "apparent", "principal", "hazardous", "exhausted", "affluent",
-    "sincere", "beneficial", "valuable", "fascinating", "tedious", "precise",
-    "adequate", "renowned", "feasible", "courageous", "cautious", "severe",
-    "prepared", "delighted", "contemporary", "various", "requisite", "notably",
-    "specifically", "propose", "proposed", "recommend", "recommended", "select",
-    "selected", "generate", "generated", "produce", "produced", "analyze",
-    "resolve", "establish", "determine", "discuss", "emphasize", "ensure",
-    "affect", "alter", "altered", "seek", "permit", "permitted", "enable",
-    "maintain", "retain", "preserve", "discover", "eliminate", "devise",
-    "indicate", "regarding", "concerning", "simultaneously", "owing to",
-    "due to", "in addition", "as a consequence", "notwithstanding", "postpone",
-    "conduct", "perform", "investigate", "address", "handle", "abandon",
-}
-
+# Slang the rewrite never picks.
 CASUAL = {
     "pal", "buddy", "folks", "kid", "kids", "tough", "lots of", "plenty of",
     "awesome", "stuff", "chore", "racket", "maybe", "figure out", "find out",
@@ -380,47 +346,6 @@ _PHRASAL = {
     "figure out": ["work out", "determine", "understand"],
 }
 
-_WORDY = {
-    "in order to": ["to"],
-    "due to the fact that": ["because", "since"],
-    "at this point in time": ["now", "currently"],
-    "at the present time": ["now", "currently"],
-    "in the event that": ["if"],
-    "a large number of": ["many", "numerous"],
-    "a majority of": ["most"],
-    "the majority of": ["most"],
-    "in spite of the fact that": ["although", "even though"],
-    "despite the fact that": ["although", "even though"],
-    "with regard to": ["about", "regarding"],
-    "with regards to": ["about", "regarding"],
-    "in regard to": ["about", "regarding"],
-    "in close proximity to": ["near", "close to"],
-    "prior to": ["before"],
-    "subsequent to": ["after"],
-    "each and every": ["every"],
-    "first and foremost": ["first"],
-    "has the ability to": ["can"],
-    "have the ability to": ["can"],
-    "is able to": ["can"],
-    "are able to": ["can"],
-    "on a daily basis": ["daily"],
-    "in the near future": ["soon"],
-    "a number of": ["several"],
-    "as a matter of fact": ["in fact"],
-    "at all times": ["always"],
-    "until such time as": ["until"],
-    "for the purpose of": ["for"],
-    "make a decision": ["decide"],
-    "made a decision": ["decided"],
-    "come to a conclusion": ["conclude"],
-    "give consideration to": ["consider"],
-    "take into consideration": ["consider"],
-    "in a timely manner": ["promptly"],
-    "during the course of": ["during"],
-    "whether or not": ["whether"],
-    "it is important to note that": ["notably,"],
-}
-
 GENERAL_PHRASES = _table({
     **_PHRASAL,
     "a lot of": ["plenty of", "lots of", "a great deal of"],
@@ -448,57 +373,6 @@ GENERAL_PHRASES = _table({
     "try to": ["attempt to", "strive to", "seek to"],
 })
 
-FORMAL_PHRASES = _table({
-    **{k: [o for o in v if o not in CASUAL] or v for k, v in _PHRASAL.items()},
-    "a lot of": ["a great deal of"],
-    "lots of": ["a great deal of"],
-    "really": ["truly"],
-    "kids": ["children"],
-    "kid": ["child"],
-    "stuff": ["material"],
-    "maybe": ["perhaps"],
-    "totally": ["entirely"],
-    "buy": ["purchase"],
-    "bought": ["purchased"],
-    "buying": ["purchasing"],
-    "tough": ["difficult"],
-    "awesome": ["excellent"],
-    "thanks": ["thank you"],
-    "gonna": ["going to"],
-    "wanna": ["want to"],
-    "gotta": ["have to"],
-    "yeah": ["yes"],
-    "yep": ["yes"],
-    "nope": ["no"],
-    "make sure that": ["ensure that"],
-})
-
-_SIMPLE_WORDS = {
-    "utilize": ["use"], "utilizes": ["uses"], "utilized": ["used"], "utilizing": ["using"],
-    "commence": ["start"], "commenced": ["started"], "terminate": ["end"],
-    "approximately": ["about"], "sufficient": ["enough"], "adequate": ["enough"],
-    "numerous": ["many"], "demonstrate": ["show"], "demonstrated": ["showed"],
-    "demonstrates": ["shows"], "assist": ["help"], "assisted": ["helped"],
-    "assists": ["helps"], "purchase": ["buy"], "purchased": ["bought"],
-    "obtain": ["get"], "obtained": ["got"], "require": ["need"], "requires": ["needs"],
-    "additional": ["more"], "facilitate": ["help"], "endeavor": ["try"],
-    "subsequently": ["later"], "nevertheless": ["still"], "consequently": ["so"],
-    "individuals": ["people"], "inquire": ["ask"], "inform": ["tell"],
-    "comprehend": ["understand"], "residence": ["home"], "vehicle": ["car"],
-    "automobile": ["car"], "initiate": ["start"], "initiated": ["started"],
-    "ascertain": ["find out"], "indicate": ["show"], "indicates": ["shows"],
-    "regarding": ["about"], "objective": ["goal"], "methodology": ["method"],
-    "modification": ["change"], "modify": ["change"], "modified": ["changed"],
-    "enhance": ["improve"], "enhanced": ["improved"], "acquire": ["get"],
-    "acquired": ["got"], "possess": ["have"], "possesses": ["has"],
-    "beneficial": ["helpful"], "magnitude": ["size"], "optimal": ["best"],
-    "whilst": ["while"], "amongst": ["among"], "perceive": ["see"],
-    "sufficiently": ["enough"], "prior": ["earlier"], "commencement": ["start"],
-}
-
-SIMPLE_PHRASES = _table({**_WORDY, **_SIMPLE_WORDS, "however": ["but"]})
-SHORTEN_PHRASES = _table(_WORDY)
-
 CONTRACTIONS = {
     "don't": "do not", "doesn't": "does not", "didn't": "did not", "can't": "cannot",
     "won't": "will not", "isn't": "is not", "aren't": "are not", "wasn't": "was not",
@@ -512,8 +386,6 @@ CONTRACTIONS = {
     "i'd": "I would", "you'd": "you would", "we'd": "we would", "they'd": "they would",
     "let's": "let us",
 }
-EXPAND_CONTRACTIONS = _table({k: [v] for k, v in CONTRACTIONS.items()})
-
 _CONTRACTABLE = [
     "do not", "does not", "did not", "is not", "are not", "was not", "cannot",
     "will not", "would not", "could not", "should not", "have not", "has not",
@@ -523,6 +395,3 @@ _REVERSE = {v.lower(): k for k, v in CONTRACTIONS.items()}
 CONTRACT_PHRASES = _table({
     p.lower(): [_REVERSE[p.lower()].replace("i'", "I'")] for p in _CONTRACTABLE
 })
-
-# Words that only add emphasis; "shorten" mode drops them before another word.
-FILLERS = {"very", "really", "basically", "actually", "literally", "essentially"}

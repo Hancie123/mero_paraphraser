@@ -9,8 +9,8 @@ from app.core.rule_engine import match_case, paraphrase  # noqa: E402
 from app.schemas.paraphrase import ParaphraseError  # noqa: E402
 
 
-def run(text, mode="standard", strength=50, seed=1):
-    return paraphrase(text, mode, strength, seed)["text"]
+def run(text, strength=50, seed=1):
+    return paraphrase(text, strength, seed)["text"]
 
 
 class EngineTests(unittest.TestCase):
@@ -18,40 +18,30 @@ class EngineTests(unittest.TestCase):
         lx._build_index()  # raises on duplicates
 
     def test_empty_text(self):
-        result = paraphrase("", "standard", 50, 1)
+        result = paraphrase("", 50, 1)
         self.assertEqual(result["text"], "")
         self.assertEqual(result["stats"]["words_in"], 0)
 
     def test_deterministic_with_seed(self):
         text = "The problem is difficult, but the method shows important results."
-        self.assertEqual(run(text, "creative", 80, 42), run(text, "creative", 80, 42))
+        self.assertEqual(run(text, 80, 42), run(text, 80, 42))
 
     def test_segments_rebuild_output(self):
-        result = paraphrase("We need to examine the important problems quickly.", "creative", 100, 3)
+        result = paraphrase("We need to examine the important problems quickly.", 100, 3)
         self.assertEqual("".join(s["text"] for s in result["segments"]), result["text"])
         self.assertGreater(result["stats"]["changes"], 0)
 
-    def test_formal_expands_contractions(self):
-        out = run("I don't think it's ready, and it's been a while.", "formal")
-        self.assertIn("I do not", out)
-        self.assertIn("think it is ", out)
-        self.assertIn("it has been", out)
+    def test_humanize_uses_contractions(self):
+        outs = {run("We do not know if it is ready to ship.", 100, seed) for seed in range(10)}
+        self.assertTrue(any("don't" in o or "it's" in o for o in outs), outs)
 
-    def test_shorten_removes_wordiness_and_fillers(self):
-        out = run("In order to win, we really need to try.", "shorten")
-        self.assertTrue(out.startswith("To win"), out)
-        self.assertNotIn("really", out)
-        self.assertEqual(run("Really good work.", "shorten"), "Good work.")
-
-    def test_simple_mode(self):
-        out = run("We utilize an automobile to commence the journey.", "simple")
-        self.assertIn("use", out)
-        self.assertIn("a car", out)  # article fixed: an automobile -> a car
-        self.assertIn("start", out)
+    def test_never_picks_slang(self):
+        for seed in range(20):
+            self.assertNotIn("lots of", run("We found a lot of problems with the plan.", 100, seed))
 
     def test_protects_urls_quotes_and_proper_nouns(self):
         text = 'Visit https://example.com/problem for "important" news about Happy Valley.'
-        out = run(text, "creative", 100)
+        out = run(text, 100)
         self.assertIn("https://example.com/problem", out)
         self.assertIn('"important"', out)
         self.assertIn("Happy Valley", out)
@@ -69,13 +59,11 @@ class EngineTests(unittest.TestCase):
 
     def test_strength_zero_changes_little(self):
         text = "The important problem was difficult for the students. " * 5
-        low = paraphrase(text, "standard", 0, 9)["stats"]["change_pct"]
-        high = paraphrase(text, "standard", 100, 9)["stats"]["change_pct"]
+        low = paraphrase(text, 0, 9)["stats"]["change_pct"]
+        high = paraphrase(text, 100, 9)["stats"]["change_pct"]
         self.assertLess(low, high)
 
     def test_invalid_input(self):
-        with self.assertRaises(ParaphraseError):
-            paraphrase("hi", "nope")
         with self.assertRaises(ParaphraseError):
             paraphrase("x" * 20_001)
 

@@ -1,15 +1,15 @@
 """Measure how human the paraphraser's output reads, before and after a change.
 
 Runs every passage in tools/samples/*.txt (or the folder given with --samples)
-through the pipeline and reports, per mode:
+through the pipeline and reports:
 
 * local metrics: sentence-length variation (burstiness), AI-typical patterns
   found, and the human score the pipeline itself computed;
-* the meaning-check pass rate, so you can see when "more human" starts to cost accuracy;
+* the fact-check pass rate, so you can see when "more human" starts to cost accuracy;
 * GPTZero's verdict, if GPTZERO_API_KEY is set (paid API; the text is sent to
   GPTZero's servers, so only use passages you're allowed to share).
 
-    python python-engine/tools/eval_humanness.py --modes standard academic --engine ai
+    python python-engine/tools/eval_humanness.py --strength 80
     python python-engine/tools/eval_humanness.py --out results.json   # keep a record to compare later
 
 Detectors change often: re-run this after GPTZero updates, not just after code changes.
@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.api.paraphrase import paraphrase  # noqa: E402
+from app.core.config import MODES  # noqa: E402
 from app.pipeline.humanizer import ai_patterns, burstiness  # noqa: E402
 
 GPTZERO_URL = "https://api.gptzero.me/v2/predict/text"
@@ -60,9 +61,7 @@ def gptzero(text: str, key: str) -> dict | None:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--samples", type=Path, default=Path(__file__).with_name("samples"))
-    parser.add_argument("--modes", nargs="+", default=["standard"])
     parser.add_argument("--strength", type=int, default=60)
-    parser.add_argument("--engine", default="ai", choices=["ai", "basic", "auto"])
     parser.add_argument("--seed", type=int, default=7)
     parser.add_argument("--out", type=Path, help="write all results as JSON")
     args = parser.parse_args()
@@ -73,12 +72,11 @@ def main() -> None:
     if not files:
         sys.exit(f"no .txt passages in {args.samples}")
     rows = []
-    for mode in args.modes:
+    for mode in MODES:
         for f in files:
             source = f.read_text(encoding="utf-8").strip()
             t = time.time()
-            result = paraphrase({"text": source, "mode": mode, "strength": args.strength,
-                                 "seed": args.seed, "engine": args.engine})
+            result = paraphrase({"text": source, "mode": mode, "strength": args.strength, "seed": args.seed})
             report = result["report"]
             row = {
                 "file": f.name,
@@ -106,7 +104,7 @@ def main() -> None:
                   f"{row['seconds']}s{gz}")
 
     print("\nSummary")
-    for mode in args.modes:
+    for mode in MODES:
         mine = [r for r in rows if r["mode"] == mode]
         line = (f"  {mode}: meaning ok {sum(r['meaning_ok'] for r in mine)}/{len(mine)}, "
                 f"burstiness {statistics.fmean(r['burstiness_out'] for r in mine):.2f}, "

@@ -9,7 +9,7 @@ Detectors such as GPTZero look at, among other things:
 Layer 4 uses ``human_score`` to choose between drafts. Layer 5 calls
 ``restructure``, which only makes edits that keep the meaning: it drops summary
 openers, unrolls "not only... but also", splits a long sentence when the
-lengths are too even, and uses contractions in casual modes.
+lengths are too even, and uses contractions.
 """
 
 from __future__ import annotations
@@ -20,7 +20,6 @@ import statistics
 from dataclasses import dataclass, field
 
 from ..core import lexicon as lx
-from ..core.config import CASUAL_MODES
 from ..utils.text_utils import STOPWORDS, WORD_RE, match_case, split_sentences, word_count
 
 # ---------------------------------------------------------------- patterns
@@ -102,7 +101,6 @@ def human_score(text: str) -> HumanScore:
 _CONTRACT = {" ".join(k): v[0] for k, v in lx.CONTRACT_PHRASES.items()}
 _CONTRACT_RE = re.compile(r"\b(" + "|".join(re.escape(k) for k in sorted(_CONTRACT, key=len, reverse=True))
                           + r")\b(?=\s+[\w\[])", re.IGNORECASE)
-_HAS_CONTRACTION = re.compile(r"\b\w+['’](?:t|s|re|ve|ll|d|m)\b", re.IGNORECASE)
 _SUBJECT = r"(?:the|this|that|these|those|it|its|they|their|we|our|he|she|his|her|there|many|most|some|such|[A-Z][\w-]*|\[\[\d+\]\])"
 _SPLIT_RE = re.compile(r"(,\s+(and|but|so|yet)|;)\s+(?=" + _SUBJECT + r"\b)")
 
@@ -111,14 +109,12 @@ def _cap(s: str) -> str:
     return s[:1].upper() + s[1:]
 
 
-def _split_long(sentence: str, casual: bool, rng: random.Random) -> str | None:
+def _split_long(sentence: str, rng: random.Random) -> str | None:
     """Split one long sentence at a clause boundary near its middle, or None."""
     n = word_count(sentence)
     best = None
     for m in _SPLIT_RE.finditer(sentence):
         conj = (m.group(2) or ";").lower()
-        if conj != ";" and conj != "and" and not casual:
-            continue  # formal text: no sentence starting with "But"/"So"
         left, right = word_count(sentence[:m.start()]), word_count(sentence[m.end():])
         if left >= 6 and right >= 6:
             dist = abs(left - n / 2)
@@ -128,25 +124,25 @@ def _split_long(sentence: str, casual: bool, rng: random.Random) -> str | None:
         return None
     _, m, conj = best
     rest = sentence[m.end():]
-    if conj in ("but", "so", "yet") or (conj == "and" and casual and rng.random() < 0.4):
+    if conj in ("but", "so", "yet") or (conj == "and" and rng.random() < 0.4):
         rest = conj + " " + rest
     return sentence[:m.start()] + ". " + _cap(rest)
 
 
 # Stiff connectors -> natural ones with the same meaning (addition stays addition, contrast stays
-# contrast). "But"/"So"/"Yet" take no comma. Casual modes use the first list, formal modes the second.
-_TRANSITION_SWAPS: dict[str, tuple[list[str], list[str]]] = {
-    "furthermore": (["On top of that,", "Plus,", "Also,", "What's more,"], ["Beyond this,", "Also,"]),
-    "moreover": (["On top of that,", "Plus,", "What's more,"], ["Beyond this,", "Also,"]),
-    "additionally": (["Also,", "Plus,", "On top of that,"], ["Also,", "Beyond this,"]),
-    "in addition": (["Also,", "Plus,"], ["Also,", "Beyond this,"]),
-    "however": (["That said,", "Still,", "But"], ["Even so,", "Yet"]),
-    "nevertheless": (["Even so,", "Still,"], ["Even so,", "Still,"]),
-    "nonetheless": (["Even so,", "Still,"], ["Even so,", "Still,"]),
-    "consequently": (["So", "Because of that,"], ["As a result,", "For this reason,"]),
-    "therefore": (["So", "Because of that,"], ["For this reason,", "As a result,"]),
-    "thus": (["So"], ["As a result,"]),
-    "similarly": (["In the same way,", "Likewise,"], ["Likewise,", "In the same way,"]),
+# contrast). "But"/"So" take no comma.
+_TRANSITION_SWAPS: dict[str, list[str]] = {
+    "furthermore": ["On top of that,", "Plus,", "Also,", "What's more,"],
+    "moreover": ["On top of that,", "Plus,", "What's more,"],
+    "additionally": ["Also,", "Plus,", "On top of that,"],
+    "in addition": ["Also,", "Plus,"],
+    "however": ["That said,", "Still,", "But"],
+    "nevertheless": ["Even so,", "Still,"],
+    "nonetheless": ["Even so,", "Still,"],
+    "consequently": ["So", "Because of that,"],
+    "therefore": ["So", "Because of that,"],
+    "thus": ["So"],
+    "similarly": ["In the same way,", "Likewise,"],
 }
 _TRANSITION_SWAP_RE = re.compile(
     r"(^|[.!?][\"”’)\]]*\s+|\n\s*)(" + "|".join(k.replace(" ", r"\s") for k in _TRANSITION_SWAPS) + r"),\s+(\S)",
@@ -157,7 +153,7 @@ _THIS_RE = re.compile(
 _SUMMARY_START = re.compile(r"^(?:" + "|".join(o.replace(" ", r"\s") for o in _OPENERS) + r"),", re.IGNORECASE)
 
 
-def _swap_transitions(text: str, src: str, casual: bool, rng: random.Random) -> tuple[str, int]:
+def _swap_transitions(text: str, src: str, rng: random.Random) -> tuple[str, int]:
     """Replace stiff sentence-opening connectors, never with the same one twice in a part."""
     used: set[str] = set()
     count = 0
@@ -167,7 +163,7 @@ def _swap_transitions(text: str, src: str, casual: bool, rng: random.Random) -> 
         key = re.sub(r"\s+", " ", m.group(2).lower())
         if key in src or rng.random() < 0.3:  # the author's own words, or leave some as they are
             return m.group(0)
-        options = [o for o in _TRANSITION_SWAPS[key][0 if casual else 1] if o not in used]
+        options = [o for o in _TRANSITION_SWAPS[key] if o not in used]
         if not options:
             return m.group(0)
         choice = rng.choice(options)
@@ -246,25 +242,10 @@ def _parenthetical(text: str, rng: random.Random) -> tuple[str, int]:
     return text[:m.start()] + f"{m.group(1)} ({m.group(2)} {m.group(3)}) " + text[m.end():], 1
 
 
-def _standalone_takeaway(text: str, source: str, rng: random.Random) -> tuple[str, int]:
-    """Move a short closing sentence of a long paragraph onto its own line (once per part)."""
-    sep = "\n\n" if "\n\n" in source or "\n" not in source else "\n"
-    paragraphs = text.split("\n\n") if sep == "\n\n" else text.split("\n")
-    for i, para in enumerate(paragraphs):
-        sents = split_sentences(para)
-        if len(sents) >= 4 and 3 <= word_count(sents[-1]) <= 14 and rng.random() < 0.5:
-            cut = para.rfind(sents[-1])
-            if cut > 0:
-                paragraphs[i] = para[:cut].rstrip() + sep + para[cut:]
-                return sep.join(paragraphs), 1
-    return text, 0
-
-
-def restructure(text: str, source: str, mode: str, rng: random.Random) -> tuple[str, int]:
+def restructure(text: str, source: str, rng: random.Random) -> tuple[str, int]:
     """Meaning-preserving edits against the structures detectors flag. Returns (text, edits)."""
     edits = 0
     src = source.lower()
-    casual = mode in CASUAL_MODES
 
     def opener(m: re.Match) -> str:
         nonlocal edits
@@ -278,9 +259,9 @@ def restructure(text: str, source: str, mode: str, rng: random.Random) -> tuple[
     text = _OPENER_RE.sub(opener, text)
 
     if "—" not in source:
-        # Em dashes are a well-known AI tell.
-        # Casual modes may keep one per part; used that sparingly, it reads human.
-        kept = 0 if casual and rng.random() < 0.5 else 1
+        # Em dashes are a well-known AI tell. Half the time one may stay per part; used that
+        # sparingly, it reads human.
+        kept = 0 if rng.random() < 0.5 else 1
 
         def dash(m: re.Match) -> str:
             nonlocal kept, edits
@@ -296,28 +277,23 @@ def restructure(text: str, source: str, mode: str, rng: random.Random) -> tuple[
         text, n = _NOT_ONLY_RE.subn(r"\1 and", text)
         edits += n
 
-    text, n = _swap_transitions(text, src, casual, rng)
+    text, n = _swap_transitions(text, src, rng)
     edits += n
     text, n = _merge_this_openers(text)
     edits += n
     text, n = _ellipsis(text, src)
     edits += n
-    if casual:
-        text, n = _parenthetical(text, rng)
-        edits += n
-    if mode == "creative":
-        text, n = _standalone_takeaway(text, source, rng)
-        edits += n
+    text, n = _parenthetical(text, rng)
+    edits += n
 
-    if mode in ("fluent", "creative") or (casual and _HAS_CONTRACTION.search(source)):
-        def contract(m: re.Match) -> str:
-            nonlocal edits
-            if rng.random() > 0.75:
-                return m.group(0)  # people aren't fully consistent
-            edits += 1
-            return match_case(m.group(1), _CONTRACT[m.group(1).lower()])
+    def contract(m: re.Match) -> str:
+        nonlocal edits
+        if rng.random() > 0.75:
+            return m.group(0)  # people aren't fully consistent
+        edits += 1
+        return match_case(m.group(1), _CONTRACT[m.group(1).lower()])
 
-        text = _CONTRACT_RE.sub(contract, text)
+    text = _CONTRACT_RE.sub(contract, text)
 
     sentences = split_sentences(text)
     if len(sentences) >= 3 and burstiness(text) < 0.45:
@@ -325,7 +301,7 @@ def restructure(text: str, source: str, mode: str, rng: random.Random) -> tuple[
         for s in sorted(sentences, key=word_count, reverse=True):
             if budget == 0 or word_count(s) < 20:
                 break
-            new = _split_long(s, casual, rng)
+            new = _split_long(s, rng)
             if new and s in text:
                 text = text.replace(s, new, 1)
                 edits += 1

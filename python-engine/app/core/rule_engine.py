@@ -1,6 +1,6 @@
-"""Rule-based paraphrasing: phrase rewrites, synonym swaps and register shifts.
+"""Rule-based paraphrasing for Humanize mode: phrase rewrites, synonym swaps and contractions.
 
-Used by the rewriting layer when the AI model isn't installed yet.
+Used by the rewriting layer (Layer 4).
 
 The engine works on tokens so it can report exactly which spans changed.
 Each changed span carries its original text and the other candidates, which
@@ -21,57 +21,16 @@ from .config import MAX_CHARS
 @dataclass(frozen=True)
 class PhraseRule:
     table: dict[tuple[str, ...], list[str]]
-    forced: bool  # always apply (the point of the mode) vs. roll against strength
     needs_next_word: bool = False  # only rewrite when another word follows
 
 
-@dataclass(frozen=True)
-class ModeConfig:
-    label: str
-    description: str
-    base_p: float  # replacement probability at strength 0
-    span_p: float  # extra probability added at strength 100
-    picker: str  # how a candidate is chosen, see Paraphraser._pick
-    rules: tuple[PhraseRule, ...] = ()
-    only_shorter: bool = False
-    remove_fillers: bool = False
-
-
-MODES: dict[str, ModeConfig] = {
-    "standard": ModeConfig(
-        "Standard", "Balanced rewording that keeps the meaning.",
-        0.10, 0.60, "random", (PhraseRule(lx.GENERAL_PHRASES, False),),
-    ),
-    "fluent": ModeConfig(
-        "Fluent", "Natural, everyday wording that reads smoothly.",
-        0.08, 0.50, "common",
-        (PhraseRule(lx.GENERAL_PHRASES, False),
-         PhraseRule(lx.CONTRACT_PHRASES, False, needs_next_word=True)),
-    ),
-    "formal": ModeConfig(
-        "Formal", "Professional tone: no contractions, formal vocabulary.",
-        0.10, 0.50, "formal",
-        (PhraseRule(lx.EXPAND_CONTRACTIONS, True),
-         PhraseRule(lx.FORMAL_PHRASES, True),
-         PhraseRule(lx.GENERAL_PHRASES, False)),
-    ),
-    "simple": ModeConfig(
-        "Simple", "Plain words and shorter phrases that are easy to read.",
-        0.15, 0.55, "simple", (PhraseRule(lx.SIMPLE_PHRASES, True),),
-        only_shorter=True,
-    ),
-    "creative": ModeConfig(
-        "Creative", "Bolder rewording with more varied vocabulary.",
-        0.35, 0.60, "wild",
-        (PhraseRule(lx.GENERAL_PHRASES, False),
-         PhraseRule(lx.CONTRACT_PHRASES, False, needs_next_word=True)),
-    ),
-    "shorten": ModeConfig(
-        "Shorten", "Cuts wordy phrases and filler words.",
-        0.05, 0.30, "simple", (PhraseRule(lx.SHORTEN_PHRASES, True),),
-        only_shorter=True, remove_fillers=True,
-    ),
-}
+# Humanize: natural, everyday wording with contractions where they read naturally.
+BASE_P = 0.10  # replacement probability at strength 0
+SPAN_P = 0.55  # extra probability added at strength 100
+RULES: tuple[PhraseRule, ...] = (
+    PhraseRule(lx.GENERAL_PHRASES),
+    PhraseRule(lx.CONTRACT_PHRASES, needs_next_word=True),
+)
 
 _TOKEN_RE = re.compile(
     r"(?P<protected>https?://\S+|www\.\S+|[\w.+-]+@[\w-]+\.[\w.-]+|`[^`\n]*`)"
@@ -81,9 +40,7 @@ _TOKEN_RE = re.compile(
     re.DOTALL,
 )
 _WORD_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)*")
-_MAX_PHRASE = max(
-    len(key) for cfg in MODES.values() for rule in cfg.rules for key in rule.table
-)
+_MAX_PHRASE = max(len(key) for rule in RULES for key in rule.table)
 _AN_EXCEPTIONS = ("hour", "honest", "honor", "honour", "heir")
 _A_EXCEPTIONS = (
     "unique", "unit", "univ", "unif", "union", "unicorn", "usual", "use", "usa",
@@ -131,10 +88,9 @@ def wants_an(word: str) -> bool:
 
 
 class Paraphraser:
-    def __init__(self, text: str, cfg: ModeConfig, strength: int, rng: random.Random):
-        self.cfg = cfg
+    def __init__(self, text: str, strength: int, rng: random.Random):
         self.rng = rng
-        self.p = min(cfg.base_p + cfg.span_p * strength / 100, 0.95)
+        self.p = min(BASE_P + SPAN_P * strength / 100, 0.95)
         self.tokens = [(m.lastgroup, m.group()) for m in _TOKEN_RE.finditer(text)]
         # Word stems already in the text; avoids "the challenge was challenging".
         self.stems = {_stem(t) for k, t in self.tokens if k == "word"}
@@ -159,21 +115,8 @@ class Paraphraser:
 
     # -- choosing a replacement -----------------------------------------
     def _pick(self, options: list[str], original: str) -> str | None:
-        opts = [o for o in options if o.lower() != original]
-        if not opts:
-            return None
-        picker = self.cfg.picker
-        if picker == "formal":
-            preferred = [o for o in opts if o in lx.FORMAL_PREF]
-            opts = preferred or [o for o in opts if o not in lx.CASUAL]
-        elif picker == "simple":
-            plain = [o for o in opts if o not in lx.FORMAL_PREF] or opts
-            shortest = min(len(o) for o in plain)
-            opts = [o for o in plain if len(o) <= shortest + 1]
-        elif picker == "common":
-            opts = [o for o in opts if o not in lx.CASUAL][:2]
-        elif picker == "random":
-            opts = [o for o in opts if o not in lx.CASUAL]
+        """One of the two most common candidates, skipping slang."""
+        opts = [o for o in options if o.lower() != original and o not in lx.CASUAL][:2]
         return self.rng.choice(opts) if opts else None
 
     def _phrase(self, i: int) -> tuple[Segment, int] | None:
@@ -189,13 +132,13 @@ class Paraphraser:
         for length in range(len(words), 0, -1):
             key = tuple(words[:length])
             end = positions[length - 1] + 1
-            for rule in self.cfg.rules:
+            for rule in RULES:
                 options = rule.table.get(key)
                 if not options:
                     continue
                 if rule.needs_next_word and not self._next_is_word(end - 1):
                     continue
-                if not rule.forced and self.rng.random() >= self.p:
+                if self.rng.random() >= self.p:
                     continue
                 original = "".join(t for _, t in self.tokens[i:end])
                 choice = self._pick(options, original.lower())
@@ -218,7 +161,7 @@ class Paraphraser:
             return None
         fresh = [c for c in candidates if _stem(c.split(" ")[0]) not in self.stems]
         choice = self._pick(fresh, lower)
-        if choice is None or (self.cfg.only_shorter and len(choice) >= len(lower)):
+        if choice is None:
             return None
         self.stems.add(_stem(choice.split(" ")[0]))
         text = match_case(token, choice)
@@ -228,7 +171,7 @@ class Paraphraser:
     # -- main pass -------------------------------------------------------
     def run(self) -> list[Segment]:
         out: list[Segment] = []
-        sentence_start, in_quote, cap_next = True, False, False
+        sentence_start, in_quote = True, False
         i, n = 0, len(self.tokens)
         while i < n:
             kind, tok = self.tokens[i]
@@ -251,10 +194,6 @@ class Paraphraser:
             proper_noun = tok[0].isupper() and not sentence_start and not is_i
             seg, consumed = None, 1
             if not (in_quote or proper_noun or self._in_compound(i)):
-                if self.cfg.remove_fillers and lower in lx.FILLERS and self._next_is_word(i):
-                    cap_next = cap_next or tok[0].isupper()
-                    i += 2  # drop the filler and the space after it
-                    continue
                 hit = self._phrase(i)
                 if hit:
                     seg, consumed = hit
@@ -262,9 +201,6 @@ class Paraphraser:
                     seg = self._synonym(tok)
             if seg is None:
                 seg = Segment(tok, "word")
-            if cap_next:
-                seg.text = seg.text[:1].upper() + seg.text[1:]
-                cap_next = False
             out.append(seg)
             sentence_start = False
             i += consumed
@@ -306,18 +242,15 @@ def _merge(segments: list[Segment]) -> list[dict]:
     return merged
 
 
-def paraphrase(text: str, mode: str = "standard", strength: int = 50, seed: int | None = None) -> dict:
-    """Paraphrase ``text``. Same text, mode, strength and seed give the same output."""
+def paraphrase(text: str, strength: int = 50, seed: int | None = None) -> dict:
+    """Paraphrase ``text``. Same text, strength and seed give the same output."""
     if not isinstance(text, str):
         raise ParaphraseError("text must be a string")
     if len(text) > MAX_CHARS:
         raise ParaphraseError(f"text is too long ({len(text):,} characters, max {MAX_CHARS:,})")
-    cfg = MODES.get(mode)
-    if cfg is None:
-        raise ParaphraseError(f"unknown mode {mode!r}; choose one of {', '.join(MODES)}")
     strength = max(0, min(100, int(strength)))
 
-    segments = Paraphraser(text, cfg, strength, random.Random(seed)).run()
+    segments = Paraphraser(text, strength, random.Random(seed)).run()
     output = "".join(s.text for s in segments)
     words_in = len(_WORD_RE.findall(text))
     changed_words = sum(len(_WORD_RE.findall(s.original)) for s in segments if s.changed)

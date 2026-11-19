@@ -2,31 +2,14 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 VERSION = "0.1.0"
 
 MAX_CHARS = 20_000
 CHUNK_CHARS = 1_500  # the rewriting layer works a few paragraphs at a time
 MAX_ATTEMPTS = 2  # a part that fails validation is rewritten once more
 
-
-@dataclass(frozen=True)
-class ModeSpec:
-    label: str
-    rule_mode: str  # mode used by the rule-based engine
-    length: tuple[float, float] = (0.55, 1.7)  # allowed output/input word ratio
-
-
-MODES: dict[str, ModeSpec] = {
-    "standard": ModeSpec("Standard", "standard"),
-    "academic": ModeSpec("Academic", "formal"),
-    "professional": ModeSpec("Professional", "formal"),
-    "fluent": ModeSpec("Fluent", "fluent"),
-    "simple": ModeSpec("Simple", "simple", (0.4, 1.6)),
-    "creative": ModeSpec("Creative", "creative", (0.55, 1.9)),
-    "shorten": ModeSpec("Shorten", "shorten", (0.25, 1.0)),
-}
+MODES = {"humanize": "Humanize"}  # mode id -> label
+LENGTH = (0.55, 1.7)  # allowed output/input word ratio per part
 
 # Words that make text read as AI-written. tools/build_lexicon.py never offers
 # them as synonyms. Multi-word phrases are handled by Layer 5 (language_refiner).
@@ -41,8 +24,6 @@ AVOID_WORDS: frozenset[str] = frozenset({
     "landscape",
 })
 
-CASUAL_MODES = ("standard", "fluent", "creative", "simple")  # contractions, "And"/"But" openers
-MODE_ALIASES = {"formal": "professional"}  # older clients
 
 
 def drafts_for(strength: int) -> int:

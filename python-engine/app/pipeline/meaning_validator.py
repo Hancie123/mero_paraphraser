@@ -9,13 +9,13 @@ from __future__ import annotations
 
 import re
 
-from ..core.config import MODES
+from ..core.config import LENGTH
 from ..schemas.paraphrase import ChunkResult, Facts
 from ..utils.text_utils import word_count
 from .semantic_analyzer import HEDGE_RE, NEGATION_RE, NUMBER_WORDS, numbers_in
 
 
-def check_facts(source: str, output: str, facts: Facts, mode: str) -> list[str]:
+def check_facts(source: str, output: str, facts: Facts) -> list[str]:
     issues: list[str] = []
     out_numbers = set(numbers_in(output))
     out_lower = output.lower()
@@ -37,7 +37,7 @@ def check_facts(source: str, output: str, facts: Facts, mode: str) -> list[str]:
         issues.append("Hedging words were removed, so a claim now sounds more certain than in the original.")
 
     n_in, n_out = word_count(source), word_count(output)
-    lo, hi = MODES[mode].length
+    lo, hi = LENGTH
     if n_in >= 8 and not (lo <= n_out / max(1, n_in) <= hi):
         issues.append(f"The length changed too much ({n_in} to {n_out} words).")
     return issues

@@ -1,10 +1,10 @@
 """Layer 5: language refinement - grammar, vocabulary, sentence flow and readability.
 
-Deterministic clean-up after the model: spacing and punctuation, doubled
+Deterministic clean-up after the rewrite: spacing and punctuation, doubled
 words, sentence capitals, "a"/"an", and stock AI phrases the author didn't use.
-Given the mode, it also breaks up structures AI detectors flag (see
+With ``humanize`` it also breaks up structures AI detectors flag (see
 humanizer.restructure): summary openers, "not only... but also", sentences of
-even length, and missing contractions in casual modes.
+even length, and missing contractions.
 """
 
 from __future__ import annotations
@@ -98,11 +98,11 @@ _PLAIN_RES = [
 ]
 
 
-def _plain_words(text: str, mode: str | None) -> tuple[str, int]:
+def _plain_words(text: str, academic: bool) -> tuple[str, int]:
     count = 0
 
     for pattern, repl, skip_academic in _PLAIN_RES:
-        if skip_academic and mode == "academic":
+        if skip_academic and academic:
             continue
 
         def sub(m: re.Match) -> str:
@@ -157,11 +157,13 @@ def _dedupe(m: re.Match) -> str:
 
 
 class LanguageRefiner:
-    def refine(self, text: str, source: str, mode: str | None = None, seed: int | None = None) -> Refined:
+    def refine(self, text: str, source: str, seed: int | None = None, *, humanize: bool = False,
+               academic: bool = False) -> Refined:
+        """``academic``: the source reads as academic writing (Layer 2), so precise words stay."""
         fixes = 0
         restructured = 0
-        if mode is not None:
-            text, restructured = restructure(text, source, mode, random.Random(seed))
+        if humanize:
+            text, restructured = restructure(text, source, random.Random(seed))
 
         def apply(pattern: str, repl, flags: int = 0) -> None:
             """Substitute, counting only matches whose replacement actually differs."""
@@ -178,7 +180,7 @@ class LanguageRefiner:
             text = re.sub(pattern, wrapped, current, flags=flags)
 
         text, phrases = _replace_phrases(text, source)
-        text, plain = _plain_words(text, mode)
+        text, plain = _plain_words(text, academic)
         phrases += plain
         if "  " not in source:
             apply(r"(?<=\S) {2,}(?=\S)", " ")
